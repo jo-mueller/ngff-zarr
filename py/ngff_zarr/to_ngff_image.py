@@ -1,5 +1,5 @@
 from collections.abc import MutableMapping
-from typing import Hashable, Mapping, Optional, Sequence, Union
+from typing import Hashable, Mapping, Optional, Sequence, Union, List
 
 import dask
 from dask.array.core import Array as DaskArray
@@ -13,14 +13,16 @@ except ImportError:
 from .methods._support import _spatial_dims
 from .ngff_image import NgffImage
 from .v04.zarr_metadata import SupportedDims, Units
-
+from .rfc5 import NgffBaseTransformation, NgffCoordinateSystem, NgffScale, NgffTranslation, NgffAxis, NgffSequence
 
 def to_ngff_image(
     data: Union[ArrayLike, MutableMapping, str, ZarrArray],
     dims: Optional[Sequence[SupportedDims]] = None,
-    scale: Optional[Union[Mapping[Hashable, float]]] = None,
-    translation: Optional[Union[Mapping[Hashable, float]]] = None,
+    transformations: Optional[Union[List[NgffBaseTransformation], NgffBaseTransformation]] = None,
+    scale: Optional[Union[Mapping[Hashable, float], NgffScale]] = None,
+    translation: Optional[Union[Mapping[Hashable, float], NgffTranslation]] = None,
     name: str = "image",
+    coordinate_system_name: str = "physical",
     axes_units: Optional[Mapping[str, Units]] = None,
 ) -> NgffImage:
     """
@@ -55,39 +57,79 @@ def to_ngff_image(
     :rtype: NgffImage
     """
 
-    ndim = data.ndim
-    if dims is None:
-        if ndim < 4:
-            dims = ("z", "y", "x")[-ndim:]
-        elif ndim < 5:
-            dims = ("z", "y", "x", "c")
-        elif ndim < 6:
-            dims = ("t", "z", "y", "x", "c")
-        else:
-            raise ValueError("Unsupported dimension: " + str(ndim))
-    else:
-        _supported_dims = {"c", "x", "y", "z", "t"}
-        if not set(dims).issubset(_supported_dims):
-            msg = "dims not valid"
-            raise ValueError(msg)
-
-    if scale is None:
-        scale = {dim: 1.0 for dim in dims if dim in _spatial_dims}
-
-    if translation is None:
-        translation = {dim: 0.0 for dim in dims if dim in _spatial_dims}
-
     if not isinstance(data, DaskArray):
         if isinstance(data, (ZarrArray, str, MutableMapping)):
             data = dask.array.from_zarr(data)
         else:
             data = dask.array.from_array(data)
 
+    # passed transformations should supersede the "old" scale/translation/etc
+    if transformations is not None:
+        if isinstance(transformations, list):
+            transformations = NgffSequence(transformations)
+
+        return NgffImage(
+            data=data,
+            transformations=transformations,
+            name=name,
+        )
+
+    ndim = data.ndim
+    ax_type_dispatch = {
+        'z': {
+            'type': 'space',
+            'discrete': False
+        },
+        'y': {
+            'type': 'space',
+            'discrete': False
+        },
+        'x': {
+            'type': 'space',
+            'discrete': False
+        },
+        'c': {
+            'type': 'channel',
+            'discrete': True
+        },
+        't': {
+            'type': 'time',
+            'discrete': False
+        }
+    }
+
+    # create default coordinate system only if dims is provided
+    _supported_dims = {"c", "x", "y", "z", "t"}
+    if dims is not None:
+        if not set(dims).issubset(_supported_dims):
+            raise ValueError("dims not valid")
+        axes = [NgffAxis(name=dim, type=ax_type_dispatch[dim]['type']) for dim in dims]
+        output_coordinate_system = NgffCoordinateSystem(name=coordinate_system_name, axes=axes)
+
+    # Set axis units if passed
+    if axes_units is not None:
+        for ax, unit in axes_units.items():
+            output_coordinate_system.set_unit(ax, unit)
+
+    # convert scale and translation to ngff transformation
+    transformations = None
+    if scale is not None:
+        transformations = NgffScale(scale, output_coordinate_system=output_coordinate_system)
+
+    if translation is not None:
+        translation = NgffTranslation(translation, output_coordinate_system=output_coordinate_system)
+        if transformations is None:
+            transformations = translation
+        else:
+            transformations = NgffSequence([transformations, translation])
+
+    if transformations is None:
+        transformations = NgffScale(
+            [1.0 for _ in range(ndim)]
+        )
+
     return NgffImage(
         data=data,
-        dims=dims,
-        scale=scale,
-        translation=translation,
+        transformations=transformations,
         name=name,
-        axes_units=axes_units,
     )

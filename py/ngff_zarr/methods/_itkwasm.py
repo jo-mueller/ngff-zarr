@@ -18,6 +18,8 @@ from ._support import (
     _next_block_shape,
 )
 
+from ..rfc5 import NgffScale, NgffTranslation, NgffSequence
+
 _image_dims: Tuple[str, str, str, str] = ("x", "y", "z", "t")
 
 
@@ -270,7 +272,16 @@ def _downsample_itkwasm(
         if transposed_dims:
             downscaled_array = downscaled_array.transpose(reorder)
 
-        previous_image = NgffImage(downscaled_array, dims, scale, translation)
+        transformation = NgffSequence(
+            [
+                NgffScale(list(scale.values()), output_coordinate_system=previous_image.output_coordinate_system),
+                NgffTranslation(list(translation.values()), output_coordinate_system=previous_image.output_coordinate_system)
+            ]
+        )
+        previous_image = NgffImage(
+            downscaled_array,
+            transformations=transformation
+        )
         multiscales.append(previous_image)
 
     return multiscales

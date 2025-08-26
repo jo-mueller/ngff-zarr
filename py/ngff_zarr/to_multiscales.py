@@ -37,7 +37,8 @@ from .multiscales import Multiscales
 from .ngff_image import NgffImage
 from .rich_dask_progress import NgffProgress, NgffProgressCallback
 from .to_ngff_image import to_ngff_image
-from .v04.zarr_metadata import Axis, Dataset, Metadata, Scale, Translation
+from .v06.zarr_metadata import Dataset, Metadata
+from .rfc5 import NgffScale, NgffTranslation, NgffSequence, NgffAxis, NgffCoordinateSystem
 
 
 def _ngff_image_scale_factors(ngff_image, min_length, out_chunks):
@@ -356,27 +357,6 @@ def to_multiscales(
             ngff_image, default_chunks, out_chunks, scale_factors, label="mode"
         )
 
-    axes = []
-    for dim in ngff_image.dims:
-        unit = None
-        if ngff_image.axes_units and dim in ngff_image.axes_units:
-            unit = ngff_image.axes_units[dim]
-
-        orientation = None
-        if ngff_image.axes_orientations and dim in ngff_image.axes_orientations:
-            orientation = ngff_image.axes_orientations[dim]
-
-        if dim in {"x", "y", "z"}:
-            axis = Axis(name=dim, type="space", unit=unit, orientation=orientation)
-        elif dim == "c":
-            axis = Axis(name=dim, type="channel", unit=unit)
-        elif dim == "t":
-            axis = Axis(name=dim, type="time", unit=unit)
-        else:
-            msg = f"Dimension identifier is not valid: {dim}"
-            raise KeyError(msg)
-        axes.append(axis)
-
     datasets = []
     for index, image in enumerate(images):
         path = f"scale{index}/{ngff_image.name}"
@@ -392,7 +372,15 @@ def to_multiscales(
                 translation.append(image.translation[dim])
             else:
                 translation.append(0.0)
-        coordinateTransformations = [Scale(scale), Translation(translation)]
+
+        coordinateTransformations = NgffSequence(
+            [
+                NgffScale(scale),
+                NgffTranslation(translation)
+            ], 
+            output_coordinate_system=ngff_image.output_coordinate_system,
+            input_coordinate_system=ngff_image.input_coordinate_system
+       )
         dataset = Dataset(
             path=path, coordinateTransformations=coordinateTransformations
         )
@@ -405,10 +393,9 @@ def to_multiscales(
         method_metadata = get_method_metadata(method)
     
     metadata = Metadata(
-        axes=axes,
+        coordinateSystems=ngff_image.coordinate_systems,
         datasets=datasets,
         name=ngff_image.name,
-        coordinateTransformations=None,
         type=method_type,
         metadata=method_metadata,
     )
