@@ -930,6 +930,7 @@ def _prepare_next_scale(
     progress: Optional[Union[NgffProgress, NgffProgressCallback]],
 ) -> Optional[object]:
     """Prepare the next scale for processing if needed."""
+    import zarr
     # Minimize task graph depth
     if (
         index > 1
@@ -943,7 +944,7 @@ def _prepare_next_scale(
             callback()
         image.computed_callbacks = []
 
-        image.data = dask.array.from_zarr(store, component=path)
+        image.data = dask.array.from_zarr(store.store_path, component=path)
         next_multiscales_factor = multiscales.scale_factors[index]
         if isinstance(next_multiscales_factor, int):
             next_multiscales_factor = (
@@ -1051,6 +1052,8 @@ def to_ngff_zarr(
                 enabled_rfcs=enabled_rfcs,
                 **kwargs,
             )
+
+        return
 
     _validate_ngff_parameters(version, chunks_per_shard, use_tensorstore, store)
     metadata, dimension_names, dimension_names_kwargs = _prepare_metadata(
@@ -1204,6 +1207,6 @@ def to_ngff_zarr(
         with warnings.catch_warnings():
             # Ignore consolidated metadata warning
             warnings.filterwarnings("ignore", category=UserWarning)
-            zarr.consolidate_metadata(store, **format_kwargs)
+            zarr.consolidate_metadata(store.store_path, **format_kwargs)
     else:
-        zarr.consolidate_metadata(store, **format_kwargs)
+        zarr.consolidate_metadata(store.store_path, **format_kwargs)
