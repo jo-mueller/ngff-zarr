@@ -976,7 +976,7 @@ def _prepare_next_scale(
 def to_ngff_zarr(
     store: StoreLike,
     multiscales: Union[List[Multiscales], Multiscales],
-    coordinateTransformation: Transform = None,
+    coordinateTransformation: Union[List[Transform], Transform] = None,
     version: str = "0.4",
     overwrite: bool = True,
     use_tensorstore: bool = False,
@@ -1033,7 +1033,23 @@ def to_ngff_zarr(
     else:
         group = zarr.open_group(store, mode="w" if overwrite else "a", chunk_store=chunk_store)
 
+    # Format parameters
+    zarr_format = 2 if version == "0.4" else 3
+    format_kwargs = {"zarr_format": zarr_format} if zarr_version_major >= 3 else {}
+    _zarr_kwargs = zarr_kwargs.copy()
+
+    if version == "0.4" and kwargs.get("compressors") is not None:
+        raise ValueError(
+            "The argument `compressors` are not supported for OME-Zarr version 0.4. (Zarr v3). Use `compression` instead."
+        )
+
+    if zarr_format == 2 and zarr_version_major >= 3:
+        _zarr_kwargs["dimension_separator"] = "/"
+
     if isinstance(multiscales, list):
+
+        if coordinateTransformation is None:
+            raise ValueError("coordinateTransformation must be provided for multiple multiscales")
 
         for index, ms in enumerate(multiscales):
 
@@ -1052,6 +1068,28 @@ def to_ngff_zarr(
                 enabled_rfcs=enabled_rfcs,
                 **kwargs,
             )
+
+        if not isinstance(coordinateTransformation, list):
+            coordinateTransformations = [coordinateTransformation]
+
+        transformations = []
+        coordinate_systems = []
+
+        for transform in coordinateTransformations:
+
+            coordinate_systems_dict = [asdict(cs) for cs in [transform.input, transform.output]]
+            transformations_dict = asdict(transform)
+            transformations_dict["input"] = transform.input.name
+            transformations_dict["output"] = transform.output.name
+
+            transformations.append(transformations_dict)
+            coordinate_systems.append(coordinate_systems_dict)
+
+        group.attrs["ome"] = {
+            "version": version,
+            "coordinateTransformations": transformations,
+            "coordinateSystems": coordinate_systems,
+        }
 
         return
 
@@ -1072,19 +1110,6 @@ def to_ngff_zarr(
         group.attrs["ome"] = {"version": version, "multiscales": [metadata_dict]}
     else:
         group.attrs["multiscales"] = [metadata_dict]
-
-    # Format parameters
-    zarr_format = 2 if version == "0.4" else 3
-    format_kwargs = {"zarr_format": zarr_format} if zarr_version_major >= 3 else {}
-    _zarr_kwargs = zarr_kwargs.copy()
-
-    if version == "0.4" and kwargs.get("compressors") is not None:
-        raise ValueError(
-            "The argument `compressors` are not supported for OME-Zarr version 0.4. (Zarr v3). Use `compression` instead."
-        )
-
-    if zarr_format == 2 and zarr_version_major >= 3:
-        _zarr_kwargs["dimension_separator"] = "/"
 
     # Process each scale level
     nscales = len(multiscales.images)
