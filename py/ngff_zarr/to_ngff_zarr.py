@@ -1,3 +1,4 @@
+from logging import root
 import sys
 from collections.abc import MutableMapping
 from dataclasses import asdict
@@ -22,6 +23,7 @@ import zarr.storage
 from ._zarr_open_array import open_array
 from .v04.zarr_metadata import Metadata as Metadata_v04
 from .v05.zarr_metadata import Metadata as Metadata_v05
+from .v06.zarr_metadata import Transform, CoordinateSystem
 from .rfc4 import is_rfc4_enabled
 
 # Zarr Python 3
@@ -585,12 +587,11 @@ def _write_array_direct(
 
     if zarr_fmt == 3 and zarr_array is None:
         # Zarr v3, use zarr.create_array and assign (whole array or region)
-        array = zarr.create_array(
-            store=store,
+        array = store.create_array(
             name=path,
             shape=arr.shape,
             dtype=arr.dtype,
-            **to_zarr_kwargs,
+#            **to_zarr_kwargs,
         )
         if region is not None:
             array[region] = arr.compute()
@@ -973,7 +974,8 @@ def _prepare_next_scale(
 
 def to_ngff_zarr(
     store: StoreLike,
-    multiscales: Multiscales,
+    multiscales: Union[List[Multiscales], Multiscales],
+    coordinateTransformation: Transform = None,
     version: str = "0.4",
     overwrite: bool = True,
     use_tensorstore: bool = False,
@@ -1025,11 +1027,30 @@ def to_ngff_zarr(
     # Setup and validation
     store_path = str(store) if isinstance(store, (str, Path)) else None
 
-    # Create Zarr root
-    root = _create_zarr_root(store, chunk_store, version, overwrite)
+    if isinstance(store, zarr.Group):
+        group = store
+    else:
+        group = zarr.open_group(store, mode="w" if overwrite else "a", chunk_store=chunk_store)
 
+    if isinstance(multiscales, list):
 
-    # inject recursion here
+        for index, ms in enumerate(multiscales):
+
+            store = group.create_group(
+                name=ms.metadata.name
+            )
+            to_ngff_zarr(
+                store,
+                ms,
+                version=version,
+                overwrite=overwrite,
+                use_tensorstore=use_tensorstore,
+                chunk_store=chunk_store,
+                progress=progress,
+                chunks_per_shard=chunks_per_shard,
+                enabled_rfcs=enabled_rfcs,
+                **kwargs,
+            )
 
     _validate_ngff_parameters(version, chunks_per_shard, use_tensorstore, store)
     metadata, dimension_names, dimension_names_kwargs = _prepare_metadata(
@@ -1041,13 +1062,13 @@ def to_ngff_zarr(
 
 
     if "omero" in metadata_dict:
-        root.attrs["omero"] = metadata_dict.pop("omero")
+        group.attrs["omero"] = metadata_dict.pop("omero")
 
     if version != "0.4":
         # RFC 2, Zarr 3
-        root.attrs["ome"] = {"version": version, "multiscales": [metadata_dict]}
+        group.attrs["ome"] = {"version": version, "multiscales": [metadata_dict]}
     else:
-        root.attrs["multiscales"] = [metadata_dict]
+        group.attrs["multiscales"] = [metadata_dict]
 
     # Format parameters
     zarr_format = 2 if version == "0.4" else 3
@@ -1082,7 +1103,7 @@ def to_ngff_zarr(
 
         # Create parent groups if needed
         if parent not in (".", "/"):
-            array_dims_group = root.create_group(parent)
+            array_dims_group = group.create_group(parent)
             array_dims_group.attrs["_ARRAY_DIMENSIONS"] = image.dims
 
         # Calculate dimension factors
