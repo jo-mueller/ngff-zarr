@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) Fideus Labs LLC
 // SPDX-License-Identifier: MIT
-import { assertEquals, assertNotEquals } from "jsr:@std/assert@0.224.0";
+import { assertEquals, assertNotEquals } from "@std/assert";
 import { fromHcsZarr, toHcsZarr } from "../src/io/hcs.ts";
 import { HCSPlate as HCSPlateClass } from "../src/types/hcs.ts";
 import type {
