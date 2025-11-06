@@ -32,7 +32,7 @@ dependencies = [
   "dask[array]",
   "importlib_resources",
   "itkwasm >= 1.0b183",
-  "itkwasm-downsample >= 1.7.1",
+  "itkwasm-downsample >= 1.8.0",
   "numpy",
   "platformdirs",
   "psutil; sys_platform != \"emscripten\"",
@@ -162,7 +162,7 @@ messages_control.disable = [
 [tool.black]
 line-length = 88
 
-[tool.pixi.project]
+[tool.pixi.workspace]
 channels = ["conda-forge"]
 platforms = ["win-64", "linux-64", "osx-64", "osx-arm64", "linux-aarch64"]
 
