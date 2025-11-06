@@ -58,5 +58,6 @@
     "noImplicitThis": true,
     "noImplicitOverride": true,
     "exactOptionalPropertyTypes": true
-  }
+  },
+  "nodeModulesDir": "auto"
 }
