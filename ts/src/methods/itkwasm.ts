@@ -145,7 +145,17 @@ async function zarrToItkImage(
     throw new Error("Zarr array data is empty");
   }
 
-  let data: Float32Array | Uint8Array | Uint16Array | Int16Array;
+  let data:
+    | Float32Array
+    | Float64Array
+    | Uint8Array
+    | Int8Array
+    | Uint16Array
+    | Int16Array
+    | Uint32Array
+    | Int32Array
+    | BigInt64Array
+    | BigUint64Array;
   let shape = result.shape;
   let _finalDims = dims;
 
@@ -208,15 +218,37 @@ async function zarrToItkImage(
  */
 function copyTypedArray(
   data: unknown
-): Float32Array | Uint8Array | Uint16Array | Int16Array {
+):
+  | Float32Array
+  | Float64Array
+  | Uint8Array
+  | Int8Array
+  | Uint16Array
+  | Int16Array
+  | Uint32Array
+  | Int32Array
+  | BigInt64Array
+  | BigUint64Array {
   if (data instanceof Float32Array) {
     return new Float32Array(data);
+  } else if (data instanceof Float64Array) {
+    return new Float64Array(data);
   } else if (data instanceof Uint8Array) {
     return new Uint8Array(data);
+  } else if (data instanceof Int8Array) {
+    return new Int8Array(data);
   } else if (data instanceof Uint16Array) {
     return new Uint16Array(data);
   } else if (data instanceof Int16Array) {
     return new Int16Array(data);
+  } else if (data instanceof Uint32Array) {
+    return new Uint32Array(data);
+  } else if (data instanceof Int32Array) {
+    return new Int32Array(data);
+  } else if (data instanceof BigInt64Array) {
+    return new BigInt64Array(data);
+  } else if (data instanceof BigUint64Array) {
+    return new BigUint64Array(data);
   } else {
     // Convert to Float32Array as fallback
     return new Float32Array(data as ArrayLike<number>);
@@ -230,27 +262,81 @@ function transposeArray(
   data: unknown,
   shape: number[],
   permutation: number[],
-  componentType: "uint8" | "int16" | "uint16" | "float32"
-): Float32Array | Uint8Array | Uint16Array | Int16Array {
+  componentType:
+    | "uint8"
+    | "int8"
+    | "uint16"
+    | "int16"
+    | "uint32"
+    | "int32"
+    | "uint64"
+    | "int64"
+    | "float32"
+    | "float64"
+):
+  | Float32Array
+  | Float64Array
+  | Uint8Array
+  | Int8Array
+  | Uint16Array
+  | Int16Array
+  | Uint32Array
+  | Int32Array
+  | BigInt64Array
+  | BigUint64Array {
   const typedData = data as
     | Float32Array
+    | Float64Array
     | Uint8Array
+    | Int8Array
     | Uint16Array
-    | Int16Array;
+    | Int16Array
+    | Uint32Array
+    | Int32Array
+    | BigInt64Array
+    | BigUint64Array;
 
   // Create output array of same type
-  let output: Float32Array | Uint8Array | Uint16Array | Int16Array;
+  let output:
+    | Float32Array
+    | Float64Array
+    | Uint8Array
+    | Int8Array
+    | Uint16Array
+    | Int16Array
+    | Uint32Array
+    | Int32Array
+    | BigInt64Array
+    | BigUint64Array;
   const totalSize = typedData.length;
 
   switch (componentType) {
     case "uint8":
       output = new Uint8Array(totalSize);
       break;
+    case "int8":
+      output = new Int8Array(totalSize);
+      break;
     case "int16":
       output = new Int16Array(totalSize);
       break;
     case "uint16":
       output = new Uint16Array(totalSize);
+      break;
+    case "int32":
+      output = new Int32Array(totalSize);
+      break;
+    case "uint32":
+      output = new Uint32Array(totalSize);
+      break;
+    case "int64":
+      output = new BigInt64Array(totalSize);
+      break;
+    case "uint64":
+      output = new BigUint64Array(totalSize);
+      break;
+    case "float64":
+      output = new Float64Array(totalSize);
       break;
     case "float32":
     default:
@@ -299,10 +385,26 @@ function transposeArray(
  */
 function getItkComponentType(
   data: unknown
-): "uint8" | "int16" | "uint16" | "float32" {
+):
+  | "uint8"
+  | "int8"
+  | "uint16"
+  | "int16"
+  | "uint32"
+  | "int32"
+  | "uint64"
+  | "int64"
+  | "float32"
+  | "float64" {
   if (data instanceof Uint8Array) return "uint8";
-  if (data instanceof Int16Array) return "int16";
+  if (data instanceof Int8Array) return "int8";
   if (data instanceof Uint16Array) return "uint16";
+  if (data instanceof Int16Array) return "int16";
+  if (data instanceof Uint32Array) return "uint32";
+  if (data instanceof Int32Array) return "int32";
+  if (data instanceof BigUint64Array) return "uint64";
+  if (data instanceof BigInt64Array) return "int64";
+  if (data instanceof Float64Array) return "float64";
   return "float32";
 }
 
@@ -333,10 +435,22 @@ async function itkImageToZarr(
   let dataType: zarr.DataType;
   if (itkImage.data instanceof Uint8Array) {
     dataType = "uint8";
+  } else if (itkImage.data instanceof Int8Array) {
+    dataType = "int8";
   } else if (itkImage.data instanceof Int16Array) {
     dataType = "int16";
   } else if (itkImage.data instanceof Uint16Array) {
     dataType = "uint16";
+  } else if (itkImage.data instanceof Int32Array) {
+    dataType = "int32";
+  } else if (itkImage.data instanceof Uint32Array) {
+    dataType = "uint32";
+  } else if (itkImage.data instanceof BigInt64Array) {
+    dataType = "int64";
+  } else if (itkImage.data instanceof BigUint64Array) {
+    dataType = "uint64";
+  } else if (itkImage.data instanceof Float64Array) {
+    dataType = "float64";
   } else if (itkImage.data instanceof Float32Array) {
     dataType = "float32";
   } else {
@@ -521,12 +635,28 @@ function extractChannel(
   result: { data: unknown; shape: number[] },
   cIndex: number,
   channelIdx: number
-): Float32Array | Uint8Array | Uint16Array | Int16Array {
+):
+  | Float32Array
+  | Float64Array
+  | Uint8Array
+  | Int8Array
+  | Uint16Array
+  | Int16Array
+  | Uint32Array
+  | Int32Array
+  | BigInt64Array
+  | BigUint64Array {
   const typedData = result.data as
     | Float32Array
+    | Float64Array
     | Uint8Array
+    | Int8Array
     | Uint16Array
-    | Int16Array;
+    | Int16Array
+    | Uint32Array
+    | Int32Array
+    | BigInt64Array
+    | BigUint64Array;
   const shape = result.shape;
 
   // Calculate output size (all dims except channel)
@@ -535,13 +665,35 @@ function extractChannel(
     1
   );
 
-  let output: Float32Array | Uint8Array | Uint16Array | Int16Array;
+  let output:
+    | Float32Array
+    | Float64Array
+    | Uint8Array
+    | Int8Array
+    | Uint16Array
+    | Int16Array
+    | Uint32Array
+    | Int32Array
+    | BigInt64Array
+    | BigUint64Array;
   if (typedData instanceof Uint8Array) {
     output = new Uint8Array(outputSize);
+  } else if (typedData instanceof Int8Array) {
+    output = new Int8Array(outputSize);
   } else if (typedData instanceof Int16Array) {
     output = new Int16Array(outputSize);
   } else if (typedData instanceof Uint16Array) {
     output = new Uint16Array(outputSize);
+  } else if (typedData instanceof Int32Array) {
+    output = new Int32Array(outputSize);
+  } else if (typedData instanceof Uint32Array) {
+    output = new Uint32Array(outputSize);
+  } else if (typedData instanceof BigInt64Array) {
+    output = new BigInt64Array(outputSize);
+  } else if (typedData instanceof BigUint64Array) {
+    output = new BigUint64Array(outputSize);
+  } else if (typedData instanceof Float64Array) {
+    output = new Float64Array(outputSize);
   } else {
     output = new Float32Array(outputSize);
   }
@@ -612,14 +764,36 @@ async function combineChannels(
 
   // Combine all channels
   const totalSize = combinedShape.reduce((acc, s) => acc * s, 1);
-  let combined: Float32Array | Uint8Array | Uint16Array | Int16Array;
+  let combined:
+    | Float32Array
+    | Float64Array
+    | Uint8Array
+    | Int8Array
+    | Uint16Array
+    | Int16Array
+    | Uint32Array
+    | Int32Array
+    | BigInt64Array
+    | BigUint64Array;
 
   if (dataType === "uint8") {
     combined = new Uint8Array(totalSize);
+  } else if (dataType === "int8") {
+    combined = new Int8Array(totalSize);
   } else if (dataType === "int16") {
     combined = new Int16Array(totalSize);
   } else if (dataType === "uint16") {
     combined = new Uint16Array(totalSize);
+  } else if (dataType === "int32") {
+    combined = new Int32Array(totalSize);
+  } else if (dataType === "uint32") {
+    combined = new Uint32Array(totalSize);
+  } else if (dataType === "int64") {
+    combined = new BigInt64Array(totalSize);
+  } else if (dataType === "uint64") {
+    combined = new BigUint64Array(totalSize);
+  } else if (dataType === "float64") {
+    combined = new Float64Array(totalSize);
   } else {
     combined = new Float32Array(totalSize);
   }
