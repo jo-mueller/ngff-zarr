@@ -69,6 +69,7 @@ usage instructions.
 - [pydantic-ome-ngff](https://janeliascicomp.github.io/pydantic-ome-ngff/)
 - [aicsimageio](https://allencellmodeling.github.io/aicsimageio/)
 - [bfio](https://bfio.readthedocs.io/)
+- [zod-ome-ngff](https://github.com/hms-dbmi/zod-ome-ngff)
 
 ## License
 
