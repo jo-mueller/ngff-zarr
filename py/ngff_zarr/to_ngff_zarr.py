@@ -692,63 +692,91 @@ def _handle_large_array_writing(
 
         return best_chunk
 
-    chunks = tuple(
-        [_find_optimal_chunk_size(c[0], arr.shape[i]) for i, c in enumerate(arr.chunks)]
-    )
-
     # If sharding is enabled, configure it properly
     chunk_kwargs = {}
     codecs_kwargs = {}
 
-    if sharding_kwargs:
-        if "_shard_shape" in sharding_kwargs:
-            # For Zarr v3, configure sharding as a codec only
-            shard_shape = sharding_kwargs.pop("_shard_shape")
-            internal_chunk_shape = sharding_kwargs.get(
-                "chunk_shape"
-            )  # This is the inner chunk shape
+    if sharding_kwargs and "_shard_shape" in sharding_kwargs:
+        # For Zarr v3 with sharding, we need to ensure the shard shape divides evenly
+        shard_shape = sharding_kwargs.pop("_shard_shape")
+        internal_chunk_shape = sharding_kwargs.get(
+            "chunk_shape"
+        )  # This is the inner chunk shape
 
-            # Configure the sharding codec with proper defaults
-            from zarr.codecs.sharding import ShardingCodec
-            from zarr.codecs.bytes import BytesCodec
-            from zarr.codecs.zstd import ZstdCodec
+        # Apply _find_optimal_chunk_size to the shard shape to ensure it divides evenly
+        optimized_shard_shape = tuple(
+            [_find_optimal_chunk_size(s, arr.shape[i]) for i, s in enumerate(shard_shape)]
+        )
 
-            # Default inner codecs for sharding
-            default_codecs = [BytesCodec(), ZstdCodec()]
-
-            # Ensure internal_chunk_shape is available; fallback to chunks if needed
-            if internal_chunk_shape is None:
-                internal_chunk_shape = chunks
-
-            # The array's chunk_shape should be the shard shape
-            # The sharding codec's chunk_shape should be the internal chunk shape
-            sharding_codec = ShardingCodec(
-                chunk_shape=internal_chunk_shape,  # Internal chunk shape within shards
-                codecs=default_codecs,
+        # Ensure internal_chunk_shape divides evenly into optimized_shard_shape
+        if internal_chunk_shape is not None:
+            # Adjust each internal chunk to be a divisor of the corresponding shard dimension
+            adjusted_internal_chunks = []
+            for shard_dim, internal_dim in zip(optimized_shard_shape, internal_chunk_shape):
+                # Find the best divisor of shard_dim that's close to internal_dim
+                if shard_dim % internal_dim == 0:
+                    # Already divides evenly
+                    adjusted_internal_chunks.append(internal_dim)
+                else:
+                    # Find closest divisor
+                    best_divisor = _find_optimal_chunk_size(internal_dim, shard_dim)
+                    adjusted_internal_chunks.append(best_divisor)
+            internal_chunk_shape = tuple(adjusted_internal_chunks)
+        else:
+            # No internal chunks specified, use defaults based on array chunks
+            internal_chunk_shape = tuple(
+                [_find_optimal_chunk_size(c[0], s)
+                 for c, s in zip(arr.chunks, optimized_shard_shape)]
             )
 
-            # Set up codecs with sharding
-            existing_codecs = zarr_kwargs.get("codecs", [])
-            if not isinstance(existing_codecs, list):
-                existing_codecs = []
-            codecs_kwargs["codecs"] = [sharding_codec] + existing_codecs
+        # Configure the sharding codec with proper defaults
+        from zarr.codecs.sharding import ShardingCodec
+        from zarr.codecs.bytes import BytesCodec
+        from zarr.codecs.zstd import ZstdCodec
 
-            # Set the array's chunk_shape to the shard shape
-            chunk_kwargs["chunk_shape"] = shard_shape
+        # Default inner codecs for sharding
+        default_codecs = [BytesCodec(), ZstdCodec()]
 
-            # Clean up remaining kwargs (remove chunk_shape since we're setting it explicitly)
-            remaining_kwargs = {
-                k: v
-                for k, v in sharding_kwargs.items()
-                if k not in ["_shard_shape", "chunk_shape"]
-            }
-            sharding_kwargs_clean = remaining_kwargs
-        else:
-            # For Zarr v2 or other cases
-            sharding_kwargs_clean = sharding_kwargs
+        # The array's chunk_shape should be the shard shape
+        # The sharding codec's chunk_shape should be the internal chunk shape
+        sharding_codec = ShardingCodec(
+            chunk_shape=internal_chunk_shape,  # Internal chunk shape within shards
+            codecs=default_codecs,
+        )
+
+        # Set up codecs with sharding
+        existing_codecs = zarr_kwargs.get("codecs", [])
+        if not isinstance(existing_codecs, list):
+            existing_codecs = []
+        codecs_kwargs["codecs"] = [sharding_codec] + existing_codecs
+
+        # Set the array's chunk_shape to the optimized shard shape
+        chunk_kwargs["chunk_shape"] = optimized_shard_shape
+
+        # For region computation, use the optimized shard shape (actual zarr chunk shape)
+        zarr_chunk_shape = optimized_shard_shape
+
+        # Clean up remaining kwargs (remove chunk_shape since we're setting it explicitly)
+        remaining_kwargs = {
+            k: v
+            for k, v in sharding_kwargs.items()
+            if k not in ["_shard_shape", "chunk_shape"]
+        }
+        sharding_kwargs_clean = remaining_kwargs
+    elif sharding_kwargs:
+        # For Zarr v2 or other cases with sharding but no _shard_shape
+        chunks = tuple(
+            [_find_optimal_chunk_size(c[0], arr.shape[i]) for i, c in enumerate(arr.chunks)]
+        )
+        zarr_chunk_shape = chunks
+        sharding_kwargs_clean = sharding_kwargs
     else:
         # No sharding
+        chunks = tuple(
+            [_find_optimal_chunk_size(c[0], arr.shape[i]) for i, c in enumerate(arr.chunks)]
+        )
         chunk_kwargs = {"chunks": chunks}
+        zarr_chunk_shape = chunks
         sharding_kwargs_clean = {}
 
     zarr_array = open_array(
@@ -770,7 +798,7 @@ def _handle_large_array_writing(
     y_index = dims.index("y")
 
     regions = _compute_write_regions(
-        image, dims, arr, shape, x_index, y_index, chunks, shrink_factors
+        image, dims, arr, shape, x_index, y_index, zarr_chunk_shape, shrink_factors
     )
 
     for region_index, region in enumerate(regions):
