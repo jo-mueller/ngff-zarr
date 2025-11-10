@@ -4,44 +4,20 @@ import { z } from "zod";
 import { AxesTypeSchema, SupportedDimsSchema, UnitsSchema } from "./units.ts";
 import { AnatomicalOrientationSchema } from "./rfc4.ts";
 import { CoordinateTransformationSchema } from "./coordinate_systems.ts";
-import type { AxesType, SupportedDims, Units } from "../types/units.ts";
 
 // Enhanced Axis schema that supports RFC4 orientation
-export const AxisSchema = z.object({
+export const AxisSchema: z.ZodObject<{
+  name: typeof SupportedDimsSchema;
+  type: typeof AxesTypeSchema;
+  unit: z.ZodOptional<typeof UnitsSchema>;
+  orientation: z.ZodOptional<typeof AnatomicalOrientationSchema>;
+}> = z.object({
   name: SupportedDimsSchema,
   type: AxesTypeSchema,
   unit: UnitsSchema.optional(),
   // RFC4: Optional orientation for space axes
   orientation: AnatomicalOrientationSchema.optional(),
-}) satisfies z.ZodType<{
-  name: SupportedDims;
-  type: AxesType;
-  unit?: Units | undefined;
-  orientation?:
-    | {
-      type: "anatomical";
-      value:
-        | "left-to-right"
-        | "right-to-left"
-        | "anterior-to-posterior"
-        | "posterior-to-anterior"
-        | "inferior-to-superior"
-        | "superior-to-inferior"
-        | "dorsal-to-ventral"
-        | "ventral-to-dorsal"
-        | "dorsal-to-palmar"
-        | "palmar-to-dorsal"
-        | "dorsal-to-plantar"
-        | "plantar-to-dorsal"
-        | "rostral-to-caudal"
-        | "caudal-to-rostral"
-        | "cranial-to-caudal"
-        | "caudal-to-cranial"
-        | "proximal-to-distal"
-        | "distal-to-proximal";
-    }
-    | undefined;
-}>;
+});
 
 // Legacy schemas for backward compatibility
 export const IdentitySchema: z.ZodObject<{

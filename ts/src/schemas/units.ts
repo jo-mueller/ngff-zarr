@@ -9,25 +9,54 @@ import {
   type Units,
 } from "../types/units.ts";
 
-export const SupportedDimsSchema = z.enum([
-  "c",
-  "x",
-  "y",
-  "z",
-  "t",
-]) satisfies z.ZodType<"c" | "x" | "y" | "z" | "t">;
+export const SupportedDimsSchema: z.ZodEnum<{
+  c: "c";
+  x: "x";
+  y: "y";
+  z: "z";
+  t: "t";
+}> = z.enum(["c", "x", "y", "z", "t"]);
 
-export const SpatialDimsSchema = z.enum(["x", "y", "z"]) satisfies z.ZodType<
-  "x" | "y" | "z"
->;
+export const SpatialDimsSchema: z.ZodEnum<{
+  x: "x";
+  y: "y";
+  z: "z";
+}> = z.enum(["x", "y", "z"]);
 
-export const AxesTypeSchema = z.enum([
-  "time",
-  "space",
-  "channel",
-]) satisfies z.ZodType<"time" | "space" | "channel">;
+export const AxesTypeSchema: z.ZodEnum<{
+  time: "time";
+  space: "space";
+  channel: "channel";
+}> = z.enum(["time", "space", "channel"]);
 
-export const SpaceUnitsSchema = z.enum([
+export const SpaceUnitsSchema: z.ZodEnum<{
+  angstrom: "angstrom";
+  attometer: "attometer";
+  centimeter: "centimeter";
+  decimeter: "decimeter";
+  exameter: "exameter";
+  femtometer: "femtometer";
+  foot: "foot";
+  gigameter: "gigameter";
+  hectometer: "hectometer";
+  inch: "inch";
+  kilometer: "kilometer";
+  megameter: "megameter";
+  meter: "meter";
+  micrometer: "micrometer";
+  mile: "mile";
+  millimeter: "millimeter";
+  nanometer: "nanometer";
+  parsec: "parsec";
+  petameter: "petameter";
+  picometer: "picometer";
+  terameter: "terameter";
+  yard: "yard";
+  yoctometer: "yoctometer";
+  yottameter: "yottameter";
+  zeptometer: "zeptometer";
+  zettameter: "zettameter";
+}> = z.enum([
   "angstrom",
   "attometer",
   "centimeter",
@@ -54,36 +83,33 @@ export const SpaceUnitsSchema = z.enum([
   "yottameter",
   "zeptometer",
   "zettameter",
-]) satisfies z.ZodType<
-  | "angstrom"
-  | "attometer"
-  | "centimeter"
-  | "decimeter"
-  | "exameter"
-  | "femtometer"
-  | "foot"
-  | "gigameter"
-  | "hectometer"
-  | "inch"
-  | "kilometer"
-  | "megameter"
-  | "meter"
-  | "micrometer"
-  | "mile"
-  | "millimeter"
-  | "nanometer"
-  | "parsec"
-  | "petameter"
-  | "picometer"
-  | "terameter"
-  | "yard"
-  | "yoctometer"
-  | "yottameter"
-  | "zeptometer"
-  | "zettameter"
->;
+]);
 
-export const TimeUnitsSchema = z.enum([
+export const TimeUnitsSchema: z.ZodEnum<{
+  attosecond: "attosecond";
+  centisecond: "centisecond";
+  day: "day";
+  decisecond: "decisecond";
+  exasecond: "exasecond";
+  femtosecond: "femtosecond";
+  gigasecond: "gigasecond";
+  hectosecond: "hectosecond";
+  hour: "hour";
+  kilosecond: "kilosecond";
+  megasecond: "megasecond";
+  microsecond: "microsecond";
+  millisecond: "millisecond";
+  minute: "minute";
+  nanosecond: "nanosecond";
+  petasecond: "petasecond";
+  picosecond: "picosecond";
+  second: "second";
+  terasecond: "terasecond";
+  yoctosecond: "yoctosecond";
+  yottasecond: "yottasecond";
+  zeptosecond: "zeptosecond";
+  zettasecond: "zettasecond";
+}> = z.enum([
   "attosecond",
   "centisecond",
   "day",
@@ -107,31 +133,7 @@ export const TimeUnitsSchema = z.enum([
   "yottasecond",
   "zeptosecond",
   "zettasecond",
-]) satisfies z.ZodType<
-  | "attosecond"
-  | "centisecond"
-  | "day"
-  | "decisecond"
-  | "exasecond"
-  | "femtosecond"
-  | "gigasecond"
-  | "hectosecond"
-  | "hour"
-  | "kilosecond"
-  | "megasecond"
-  | "microsecond"
-  | "millisecond"
-  | "minute"
-  | "nanosecond"
-  | "petasecond"
-  | "picosecond"
-  | "second"
-  | "terasecond"
-  | "yoctosecond"
-  | "yottasecond"
-  | "zeptosecond"
-  | "zettasecond"
->;
+]);
 
 export const UnitsSchema: z.ZodUnion<
   [typeof SpaceUnitsSchema, typeof TimeUnitsSchema]
