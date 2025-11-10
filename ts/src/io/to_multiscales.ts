@@ -30,16 +30,11 @@ export async function toMultiscales(
   image: NgffImage,
   options: ToMultiscalesOptions = {},
 ): Promise<Multiscales> {
-  console.log("[DEBUG toMultiscales v3.0] Function called");
-
   const {
     scaleFactors = [2, 4],
     method = Methods.ITKWASM_GAUSSIAN,
     chunks: _chunks,
   } = options;
-
-  console.log("[DEBUG toMultiscales v3.0] method =", method);
-  console.log("[DEBUG toMultiscales v3.0] scaleFactors =", scaleFactors);
 
   let images: NgffImage[];
 
@@ -49,8 +44,6 @@ export async function toMultiscales(
     method === Methods.ITKWASM_BIN_SHRINK ||
     method === Methods.ITKWASM_LABEL_IMAGE
   ) {
-    console.log("[DEBUG toMultiscales v3.0] Entering ITKWASM branch");
-
     // Perform actual downsampling using ITK-Wasm
     const smoothing = method === Methods.ITKWASM_GAUSSIAN
       ? "gaussian"
@@ -58,24 +51,19 @@ export async function toMultiscales(
       ? "bin_shrink"
       : "label_image";
 
-    console.log("[DEBUG toMultiscales v3.0] smoothing =", smoothing);
-    console.log("[DEBUG toMultiscales v3.0] About to call downsampleItkWasm");
-
+    console.log(
+      "@@@ About to call downsampleItkWasm with method:",
+      method,
+      "smoothing:",
+      smoothing,
+    );
     images = await downsampleItkWasm(
       image,
       scaleFactors as (Record<string, number> | number)[],
       smoothing,
     );
-
-    console.log(
-      "[DEBUG toMultiscales v3.0] downsampleItkWasm returned",
-      images.length,
-      "images",
-    );
+    console.log("@@@ downsampleItkWasm returned", images.length, "images");
   } else {
-    console.log(
-      "[DEBUG toMultiscales v3.0] Using fallback branch (no actual downsampling)",
-    );
     // Fallback: create only the base image (no actual downsampling)
     images = [image];
   }
@@ -100,7 +88,7 @@ export async function toMultiscales(
   // Create datasets for all images
   const datasets = images.map((img, index) => {
     return createDataset(
-      `${index}`,
+      `scale${index}`,
       img.dims.map((dim) => img.scale[dim]),
       img.dims.map((dim) => img.translation[dim]),
     );

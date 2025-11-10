@@ -114,7 +114,11 @@ Deno.test.only("cthead1 - ITKWASM_GAUSSIAN scale factors [2, 4]", async () => {
   const inputPath = join(INPUT_DIR, "cthead1.png");
   const itkImage = await readImageNode(inputPath);
   assertExists(itkImage);
-  const ngffImage = await itkImageToNgffImage(itkImage, { path: "scale0/" });
+  const ngffImage = await itkImageToNgffImage(itkImage, {
+    addAnatomicalOrientation: false,
+    path: "scale0/",
+  });
+  console.log("Converted itkImage to ngffImage", ngffImage);
 
   // Generate multiscales
   const multiscales = await toMultiscales(ngffImage, {
