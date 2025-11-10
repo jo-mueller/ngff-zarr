@@ -19,6 +19,12 @@ export interface ItkImageToNgffImageOptions {
    * @default true
    */
   addAnatomicalOrientation?: boolean;
+
+  /**
+   * Path prefix for the zarr array (e.g., "scale0/", "scale1/")
+   * @default "image"
+   */
+  path?: string;
 }
 
 /**
@@ -34,9 +40,9 @@ export interface ItkImageToNgffImageOptions {
  */
 export async function itkImageToNgffImage(
   itkImage: Image,
-  options: ItkImageToNgffImageOptions = {},
+  options: ItkImageToNgffImageOptions = {}
 ): Promise<NgffImage> {
-  const { addAnatomicalOrientation = true } = options;
+  const { addAnatomicalOrientation = true, path = "image" } = options;
 
   // Extract image properties from ITK-Wasm Image
   const _data = itkImage.data;
@@ -106,7 +112,7 @@ export async function itkImageToNgffImage(
   // Determine appropriate chunk size
   const chunkShape = shape.map((s) => Math.min(s, 256));
 
-  const zarrArray = await zarr.create(root.resolve("image"), {
+  const zarrArray = await zarr.create(root.resolve(path), {
     shape: shape,
     chunk_shape: chunkShape,
     data_type: imageType.componentType as zarr.DataType,
