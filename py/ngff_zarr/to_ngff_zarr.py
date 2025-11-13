@@ -22,6 +22,7 @@ import zarr.storage
 from ._zarr_open_array import open_array
 from .v04.zarr_metadata import Metadata as Metadata_v04
 from .v05.zarr_metadata import Metadata as Metadata_v05
+from .v06.zarr_metadata import Metadata as Metadata_v06
 from .rfc4 import is_rfc4_enabled
 
 # Zarr Python 3
@@ -44,7 +45,7 @@ zarr_version_major = zarr_version.major
 
 
 def _pop_metadata_optionals(metadata_dict, enabled_rfcs: Optional[List[int]] = None):
-    for ax in metadata_dict["axes"]:
+    for ax in metadata_dict["coordinateSystems"][0]["axes"]:
         if ax["unit"] is None:
             ax.pop("unit")
 
@@ -52,8 +53,11 @@ def _pop_metadata_optionals(metadata_dict, enabled_rfcs: Optional[List[int]] = N
         if not is_rfc4_enabled(enabled_rfcs) and "orientation" in ax:
             ax.pop("orientation")
 
-    if metadata_dict["coordinateTransformations"] is None:
-        metadata_dict.pop("coordinateTransformations")
+    try:
+        if metadata_dict["coordinateTransformations"] is None:
+            metadata_dict.pop("coordinateTransformations")
+    except KeyError:
+        pass
 
     if metadata_dict["omero"] is None:
         metadata_dict.pop("omero")
@@ -333,7 +337,7 @@ def _validate_ngff_parameters(
     store: StoreLike,
 ) -> None:
     """Validate the parameters for the NGFF Zarr generation."""
-    if version != "0.4" and version != "0.5":
+    if version not in ["0.4", "0.5", "0.6dev2"]:
         raise ValueError(f"Unsupported version: {version}")
 
     if chunks_per_shard is not None:
@@ -352,7 +356,7 @@ def _validate_ngff_parameters(
 
 def _prepare_metadata(
     multiscales: Multiscales, version: str, enabled_rfcs: Optional[List[int]] = None
-) -> Tuple[Union[Metadata_v04, Metadata_v05], Tuple[str, ...], Dict]:
+) -> Tuple[Union[Metadata_v04, Metadata_v05, Metadata_v06], Tuple[str, ...], Dict]:
     """Prepare and convert metadata to the proper version format."""
     metadata = multiscales.metadata
 
@@ -365,28 +369,48 @@ def _prepare_metadata(
 
     if version == "0.4" and isinstance(metadata, Metadata_v05):
         metadata = Metadata_v04(
-            axes=metadata.axes,
+            axes=metadata.coordinateSystems[0].axes,
             datasets=metadata.datasets,
-            coordinateTransformations=metadata.coordinateTransformations,
+            coordinateTransformations=[
+                t for t in metadata.coordinateTransformations[0].transformations
+            ],
             name=metadata.name,
             type=method_type,
             metadata=method_metadata,
         )
+
+        dimension_names = None
+        
     elif version == "0.5" and isinstance(metadata, Metadata_v04):
         metadata = Metadata_v05(
-            axes=metadata.axes,
+            axes=metadata.coordinateSystems[0].axes,
             datasets=metadata.datasets,
-            coordinateTransformations=metadata.coordinateTransformations,
+            coordinateTransformations=[
+                t for t in metadata.coordinateTransformations[0].transformations
+            ],
             name=metadata.name,
             type=method_type,
             metadata=method_metadata,
         )
+        dimension_names = tuple([ax.name for ax in metadata.axes])
+
+    if isinstance(metadata, Metadata_v06):
+        dimension_names = tuple([ax.name for ax in metadata.coordinateSystems[0].axes])
+
+    # elif "0.6dev2" in version:
+    #     metadata = Metadata_v06(
+    #         datasets=metadata.datasets,
+    #         coordinateSystems=metadata.coordinateSystems,
+    #         name=metadata.name,
+    #         type=method_type,
+    #         metadata=method_metadata,
+    #     )
+    #     dimension_names = tuple([ax.name for ax in metadata.coordinateSystems[0].axes])
     else:
         # Update the existing metadata object with the type
         if hasattr(metadata, 'type'):
             metadata.type = method_type
 
-    dimension_names = tuple([ax.name for ax in metadata.axes])
     dimension_names_kwargs = (
         {"dimension_names": dimension_names} if version != "0.4" else {}
     )

@@ -5,12 +5,13 @@ from .methods import Methods
 from .ngff_image import NgffImage
 from .v04.zarr_metadata import Metadata as Metadata_v04
 from .v05.zarr_metadata import Metadata as Metadata_v05
+from .v06.zarr_metadata import Metadata as Metadata_v06
 
 
 @dataclass
 class Multiscales:
     images: List[NgffImage]
-    metadata: Union[Metadata_v04, Metadata_v05]
+    metadata: Union[Metadata_v04, Metadata_v05, Metadata_v06]
     scale_factors: Optional[Sequence[Union[Dict[str, int], int]]] = None
     method: Optional[Methods] = None
     chunks: Optional[
