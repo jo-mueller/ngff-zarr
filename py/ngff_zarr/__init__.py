@@ -57,6 +57,11 @@ from .rfc4 import (
     add_anatomical_orientation_to_axis,
     remove_anatomical_orientation_from_axis,
 )
+from .rfc9_zip import (
+    is_ozx_path,
+    read_ozx_version,
+    write_store_to_zip,
+)
 
 __all__ = [
     "__version__",
@@ -119,4 +124,8 @@ __all__ = [
     "is_rfc4_enabled",
     "add_anatomical_orientation_to_axis",
     "remove_anatomical_orientation_from_axis",
+    # RFC 9 - Zipped OME-Zarr (.ozx)
+    "is_ozx_path",
+    "read_ozx_version",
+    "write_store_to_zip",
 ]
