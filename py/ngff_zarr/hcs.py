@@ -247,8 +247,14 @@ class HCSWell:
                         )
                         images.append(image)
 
+        # Extract version - for v0.5 it's at ome level, for v0.4 it's in well dict
         version = "0.4"
-        if "version" in well_data and isinstance(well_data["version"], str):
+        if "ome" in well_attrs and isinstance(well_attrs["ome"], dict):
+            if "version" in well_attrs["ome"] and isinstance(
+                well_attrs["ome"]["version"], str
+            ):
+                version = well_attrs["ome"]["version"]
+        elif "version" in well_data and isinstance(well_data["version"], str):
             version = well_data["version"]
 
         well_group_metadata = Well(images=images, version=version)
@@ -432,8 +438,14 @@ def from_hcs_zarr(
                 acquisitions.append(acquisition)
 
     # Extract version, field_count, and name with type checking
+    # For v0.5, version is at ome level; for v0.4, it's in plate dict
     version = "0.4"
-    if "version" in plate_data and isinstance(plate_data["version"], str):
+    if "ome" in root_attrs and isinstance(root_attrs["ome"], dict):
+        if "version" in root_attrs["ome"] and isinstance(
+            root_attrs["ome"]["version"], str
+        ):
+            version = root_attrs["ome"]["version"]
+    elif "version" in plate_data and isinstance(plate_data["version"], str):
         version = plate_data["version"]
 
     field_count = None
@@ -492,8 +504,11 @@ def to_hcs_zarr(plate: HCSPlate, store) -> None:
             }
             for well in plate.metadata.wells
         ],
-        "version": plate.metadata.version,
     }
+
+    # For v0.4, version goes in plate dict; for v0.5, it goes at top level
+    if plate.metadata.version == "0.4":
+        plate_dict["version"] = plate.metadata.version
 
     if plate.metadata.acquisitions:
         plate_dict["acquisitions"] = []
@@ -657,21 +672,30 @@ def write_hcs_well_image(
     if well_group_path in root:
         well_group = root[well_group_path]
         # Read existing well metadata if not provided
-        if well_metadata is None and "well" in well_group.attrs:
-            existing_well_attrs = well_group.attrs["well"]
-            existing_images = []
-            if "images" in existing_well_attrs:
-                for img_dict in existing_well_attrs["images"]:
-                    existing_images.append(
-                        WellImage(
-                            path=img_dict["path"],
-                            acquisition=img_dict.get("acquisition", 0),
+        if well_metadata is None:
+            existing_well_attrs = None
+            well_group_attrs = well_group.attrs.asdict()
+            
+            # Check for v0.5 format (ome wrapper) or v0.4 format (direct well)
+            if "ome" in well_group_attrs and "well" in well_group_attrs["ome"]:
+                existing_well_attrs = well_group_attrs["ome"]["well"]
+            elif "well" in well_group_attrs:
+                existing_well_attrs = well_group_attrs["well"]
+            
+            if existing_well_attrs is not None:
+                existing_images = []
+                if "images" in existing_well_attrs:
+                    for img_dict in existing_well_attrs["images"]:
+                        existing_images.append(
+                            WellImage(
+                                path=img_dict["path"],
+                                acquisition=img_dict.get("acquisition", 0),
+                            )
                         )
-                    )
-            well_metadata = Well(
-                images=existing_images,
-                version=existing_well_attrs.get("version", version),
-            )
+                well_metadata = Well(
+                    images=existing_images,
+                    version=existing_well_attrs.get("version", version),
+                )
     else:
         well_group = root.create_group(well_group_path)
 
