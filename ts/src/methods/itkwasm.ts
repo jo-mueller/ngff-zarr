@@ -36,9 +36,9 @@ function dimScaleFactors(
     for (const dim of dims) {
       if (SPATIAL_DIMS.includes(dim)) {
         // Divide by previous factor to get incremental scaling
-        // Use Math.round to handle fractional factors properly (e.g., 3/2 = 1.5 → 2)
+        // Use Math.floor to truncate (matching Python's int() behavior)
         const incrementalFactor = scaleFactor / (previousDimFactors[dim] || 1);
-        dimFactors[dim] = Math.max(1, Math.round(incrementalFactor));
+        dimFactors[dim] = Math.max(1, Math.floor(incrementalFactor));
       } else {
         dimFactors[dim] = previousDimFactors[dim] || 1;
       }
@@ -46,10 +46,10 @@ function dimScaleFactors(
   } else {
     for (const dim in scaleFactor) {
       // Divide by previous factor to get incremental scaling
-      // Use Math.round to handle fractional factors properly
+      // Use Math.floor to truncate (matching Python's int() behavior)
       const incrementalFactor = scaleFactor[dim] /
         (previousDimFactors[dim] || 1);
-      dimFactors[dim] = Math.max(1, Math.round(incrementalFactor));
+      dimFactors[dim] = Math.max(1, Math.floor(incrementalFactor));
     }
     // Add dims not in scale_factor with factor of 1
     for (const dim of dims) {
@@ -355,6 +355,19 @@ async function itkImageToZarr(
   // We need to reverse the size to match the data layout, just like we do for spacing/origin.
   const shape = [...itkImage.size].reverse();
 
+  // Validate data length matches expected shape
+  const expectedLength = shape.reduce((a, b) => a * b, 1);
+  if (itkImage.data.length !== expectedLength) {
+    console.error(`[ERROR] Data length mismatch in itkImageToZarr:`);
+    console.error(`  ITK image size (physical order):`, itkImage.size);
+    console.error(`  Shape (reversed):`, shape);
+    console.error(`  Expected data length:`, expectedLength);
+    console.error(`  Actual data length:`, itkImage.data.length);
+    throw new Error(
+      `Data length (${itkImage.data.length}) doesn't match expected shape ${shape} (${expectedLength} elements)`,
+    );
+  }
+
   // Chunk shape should also be in the same order as shape
   // Ensure chunkShape matches the dimensionality
   if (chunkShape.length !== shape.length) {
@@ -436,11 +449,12 @@ async function downsampleGaussian(
   );
 
   // Convert back to zarr array with scale-specific path using shared store
+  // Note: scaleNumber is 1-indexed (1, 2, 3...) for downsampled scales
   const chunkShape = downsampled.size.map((s) => Math.min(s, 256));
   const array = await itkImageToZarr(
     downsampled,
     sharedStore,
-    `scale${scaleNumber}/`,
+    `scale${scaleNumber}`,
     chunkShape,
   );
 
@@ -498,7 +512,7 @@ async function downsampleBinShrinkImpl(
   const array = await itkImageToZarr(
     downsampled,
     sharedStore,
-    `scale${scaleNumber}/`,
+    `scale${scaleNumber}`,
     chunkShape,
   );
 
@@ -560,7 +574,7 @@ async function downsampleLabelImageImpl(
   const array = await itkImageToZarr(
     downsampled,
     sharedStore,
-    `scale${scaleNumber}/`,
+    `scale${scaleNumber}`,
     chunkShape,
   );
 
