@@ -21,6 +21,37 @@ interface DimFactors {
 }
 
 /**
+ * Calculate the incremental factor needed to reach the target size from the previous size.
+ * This ensures exact target sizes when downsampling incrementally.
+ */
+function calculateIncrementalFactor(
+  previousSize: number,
+  targetSize: number,
+): number {
+  if (targetSize <= 0) {
+    return 1;
+  }
+
+  // Start with the theoretical factor
+  let factor = Math.floor(Math.ceil(previousSize / (targetSize + 0.5)));
+
+  // Verify this gives us the right size
+  let actualSize = Math.floor(previousSize / factor);
+  if (actualSize !== targetSize) {
+    // Adjust factor to get exact target
+    factor = Math.max(1, Math.floor(previousSize / targetSize));
+    actualSize = Math.floor(previousSize / factor);
+
+    // If still not exact, try ceil
+    if (actualSize !== targetSize) {
+      factor = Math.max(1, Math.ceil(previousSize / targetSize));
+    }
+  }
+
+  return Math.max(1, factor);
+}
+
+/**
  * Convert dimension scale factors to ITK-Wasm format
  * This computes the incremental scale factor relative to the previous scale,
  * not the absolute scale factor from the original image.
@@ -51,27 +82,10 @@ function dimScaleFactors(
           const prevDimIndex = previousImage.dims.indexOf(dim);
           const previousSize = previousImage.data.shape[prevDimIndex];
 
-          // Calculate factor such that floor(previous_size / factor) = target_size
-          let incrementalFactor = 1;
-          if (targetSize > 0) {
-            // Start with the theoretical factor
-            let factor = Math.floor(
-              Math.ceil(previousSize / (targetSize + 0.5)),
-            );
-            // Verify this gives us the right size
-            let actualSize = Math.floor(previousSize / factor);
-            if (actualSize !== targetSize) {
-              // Adjust factor to get exact target
-              factor = Math.max(1, Math.floor(previousSize / targetSize));
-              actualSize = Math.floor(previousSize / factor);
-              // If still not exact, try ceil
-              if (actualSize !== targetSize) {
-                factor = Math.max(1, Math.ceil(previousSize / targetSize));
-              }
-            }
-            incrementalFactor = Math.max(1, factor);
-          }
-          dimFactors[dim] = incrementalFactor;
+          dimFactors[dim] = calculateIncrementalFactor(
+            previousSize,
+            targetSize,
+          );
         } else {
           dimFactors[dim] = 1;
         }
@@ -100,20 +114,7 @@ function dimScaleFactors(
         const prevDimIndex = previousImage.dims.indexOf(dim);
         const previousSize = previousImage.data.shape[prevDimIndex];
 
-        let incrementalFactor = 1;
-        if (targetSize > 0) {
-          let factor = Math.floor(Math.ceil(previousSize / (targetSize + 0.5)));
-          let actualSize = Math.floor(previousSize / factor);
-          if (actualSize !== targetSize) {
-            factor = Math.max(1, Math.floor(previousSize / targetSize));
-            actualSize = Math.floor(previousSize / factor);
-            if (actualSize !== targetSize) {
-              factor = Math.max(1, Math.ceil(previousSize / targetSize));
-            }
-          }
-          incrementalFactor = Math.max(1, factor);
-        }
-        dimFactors[dim] = incrementalFactor;
+        dimFactors[dim] = calculateIncrementalFactor(previousSize, targetSize);
       }
     } else {
       // Fallback to old behavior when images not provided
