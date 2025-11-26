@@ -101,12 +101,13 @@ def from_ngff_zarr(
     else:
         metadata = root.attrs["multiscales"][0]
 
-    if "axes" not in metadata:
-        from .v04.zarr_metadata import supported_dims
-
-        dims = list(reversed(supported_dims))
-    else:
+    if "axes" in metadata:
         dims = [a["name"] if "name" in a else a for a in metadata["axes"]]
+    elif "coordinateSystems" in metadata:
+        dims = [a["name"] for a in metadata["coordinateSystems"][0]["axes"]]
+    else:
+        from .v04.zarr_metadata import supported_dims
+        dims = list(reversed(supported_dims))
 
     name = "image"
     if name in metadata:
@@ -130,25 +131,52 @@ def from_ngff_zarr(
 
         scale = {d: 1.0 for d in dims}
         translation = {d: 0.0 for d in dims}
-        coordinateTransformations = []
         if "coordinateTransformations" in dataset:
             for transformation in dataset["coordinateTransformations"]:
                 if "scale" in transformation:
                     scale = transformation["scale"]
                     scale = dict(zip(dims, scale))
-                    coordinateTransformations.append(Scale(transformation["scale"]))
                 elif "translation" in transformation:
                     translation = transformation["translation"]
                     translation = dict(zip(dims, translation))
-                    coordinateTransformations.append(
-                        Translation(transformation["translation"])
-                    )
-        datasets.append(
-            Dataset(
+
+        if version == "0.4" or version == "0.5":
+            from .v04.zarr_metadata import Dataset, Scale, Translation
+            ds = Dataset(
+                path=dataset["path"],
+                coordinateTransformations=[
+                    Scale(list(scale.values())),
+                    Translation(list(translation.values())),
+                ],
+            )
+
+        elif version.startswith("0.6"):
+            from .v06.zarr_metadata import Dataset, Scale, Translation, TransformSequence
+            coordinateTransformations = TransformSequence(
+                input=dataset["path"],
+                output='physical',
+                transformations=[
+                    Scale(scale=list(scale.values())),
+                    Translation(translation=list(translation.values())),
+                ]
+            )
+            ds = Dataset(
                 path=dataset["path"],
                 coordinateTransformations=coordinateTransformations,
             )
-        )
+        
+        # assume v04 metadata for unknown (older) versions
+        else:
+            from .v04.zarr_metadata import Dataset, Scale, Translation
+            ds = Dataset(
+                path=dataset["path"],
+                coordinateTransformations=[
+                    Scale(list(scale.values())),
+                    Translation(list(translation.values())),
+                ],
+            )
+
+        datasets.append(ds)
 
         ngff_image = NgffImage(data, dims, scale, translation, name, units)
         images.append(ngff_image)
@@ -167,6 +195,11 @@ def from_ngff_zarr(
                 "x": "space",
             }
             axes = [Axis(name=axis, type=type_dict[axis]) for axis in metadata["axes"]]
+    elif "coordinateSystems" in metadata:
+        axes = [
+            Axis(name=axis["name"], type="space")  # Default to space if type not given
+            for axis in metadata["coordinateSystems"][0]["axes"]
+        ]
     else:
         axes = [
             Axis(name="t", type="time"),
@@ -176,6 +209,7 @@ def from_ngff_zarr(
             Axis(name="x", type="space"),
         ]
 
+    # additional coordinate transformations under multiscales > coordinateTransformations
     coordinateTransformations = None
     if "coordinateTransformations" in metadata:
         coordinateTransformations = metadata["coordinateTransformations"]
@@ -288,6 +322,18 @@ def from_ngff_zarr(
             type=method_type,
             metadata=method_metadata,
         )
+    elif version.startswith("0.6"):
+        from .v06.zarr_metadata import Metadata
+
+        metadata_obj = Metadata(
+            datasets=datasets,
+            coordinateSystems=[metadata["coordinateSystems"][0]],
+            coordinateTransformations=coordinateTransformations,
+            name=name,
+            omero=omero,
+            type=method_type,
+            metadata=method_metadata,
+        )
     else:
         from .v04.zarr_metadata import Metadata
 
@@ -295,7 +341,7 @@ def from_ngff_zarr(
             axes=axes,
             datasets=datasets,
             name=name,
-            version=metadata["version"],
+            version=version,
             coordinateTransformations=coordinateTransformations,
             omero=omero,
             type=method_type,

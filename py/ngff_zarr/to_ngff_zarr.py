@@ -22,6 +22,7 @@ import zarr.storage
 from ._zarr_open_array import open_array
 from .v04.zarr_metadata import Metadata as Metadata_v04
 from .v05.zarr_metadata import Metadata as Metadata_v05
+from .v06.zarr_metadata import Metadata as Metadata_v06
 from .rfc4 import is_rfc4_enabled
 
 # Zarr Python 3
@@ -44,13 +45,24 @@ zarr_version_major = zarr_version.major
 
 
 def _pop_metadata_optionals(metadata_dict, enabled_rfcs: Optional[List[int]] = None):
-    for ax in metadata_dict["axes"]:
-        if ax["unit"] is None:
-            ax.pop("unit")
+    if "axes" in metadata_dict:
+        for ax in metadata_dict["axes"]:
+            if ax["unit"] is None:
+                ax.pop("unit")
 
-        # Handle RFC 4: Remove orientation if RFC 4 is not enabled
-        if not is_rfc4_enabled(enabled_rfcs) and "orientation" in ax:
-            ax.pop("orientation")
+            # Handle RFC 4: Remove orientation if RFC 4 is not enabled
+            if not is_rfc4_enabled(enabled_rfcs) and "orientation" in ax:
+                ax.pop("orientation")
+
+    if "coordinateSystems" in metadata_dict:
+        for cs in metadata_dict["coordinateSystems"]:
+            for ax in cs["axes"]:
+                if ax.get("unit") is None:
+                    ax.pop("unit")
+
+                # Handle RFC 4: Remove orientation if RFC 4 is not enabled
+                if not is_rfc4_enabled(enabled_rfcs) and "orientation" in ax:
+                    ax.pop("orientation")
 
     if metadata_dict["coordinateTransformations"] is None:
         metadata_dict.pop("coordinateTransformations")
@@ -363,6 +375,7 @@ def _prepare_metadata(
         method_type = multiscales.method.value
         method_metadata = get_method_metadata(multiscales.method)
 
+    dimension_names = None
     if version == "0.4" and isinstance(metadata, Metadata_v05):
         metadata = Metadata_v04(
             axes=metadata.axes,
@@ -381,12 +394,16 @@ def _prepare_metadata(
             type=method_type,
             metadata=method_metadata,
         )
+        dimension_names = tuple([ax.name for ax in metadata.axes])
+
     else:
         # Update the existing metadata object with the type
         if hasattr(metadata, 'type'):
             metadata.type = method_type
 
-    dimension_names = tuple([ax.name for ax in metadata.axes])
+    if isinstance(metadata, Metadata_v06):
+        dimension_names = tuple([ax.name for ax in metadata.coordinateSystems[0].axes])
+
     dimension_names_kwargs = (
         {"dimension_names": dimension_names} if version != "0.4" else {}
     )
