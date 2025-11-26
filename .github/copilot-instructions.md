@@ -39,30 +39,30 @@ The central workflow follows this pattern across all implementations:
 ### Python (py/)
 
 ```bash
-pixi run test                    # Run pytest test suite
-pixi run pytest path/to/test.py::test_name  # Single test
-pixi run lint                    # Pre-commit hooks (ruff, black)
-pixi run format                  # Format code
+pixi run --as-is test                    # Run pytest test suite
+pixi run --as-is pytest path/to/test.py::test_name  # Single test
+pixi run --as-is lint                    # Pre-commit hooks (ruff, black)
+pixi run --as-is format                  # Format code
 ```
 
 ### MCP Server (mcp/)
 
 ```bash
-cd mcp && pixi run test         # Run MCP tests
-cd mcp && pixi run typecheck    # mypy type checking
-cd mcp && pixi run format       # Format code
-cd mcp && pixi run dev          # Run MCP server in dev mode
+cd mcp && pixi run --as-is test         # Run MCP tests
+cd mcp && pixi run --as-is typecheck    # mypy type checking
+cd mcp && pixi run --as-is format       # Format code
+cd mcp && pixi run --as-is dev          # Run MCP server in dev mode
 ```
 
 ### TypeScript (ts/)
 
 ```bash
-cd ts && pixi run test          # Deno test suite
-cd ts && pixi run lint          # Deno lint
-cd ts && pixi run fmt           # Deno format
-cd ts && pixi run build         # Full build pipeline
-cd ts && pixi run test:browser  # Browser compatibility tests
-cd ts && pixi run check         # Type checking
+cd ts && pixi run --as-is test          # Deno test suite
+cd ts && pixi run --as-is lint          # Deno lint
+cd ts && pixi run --as-is fmt           # Deno format
+cd ts && pixi run --as-is build         # Full build pipeline
+cd ts && pixi run --as-is test:browser  # Browser compatibility tests
+cd ts && pixi run --as-is check         # Type checking
 ```
 
 ## Project-Specific Conventions
@@ -195,7 +195,7 @@ export class NgffImage {
 ## Agent Instructions
 
 - When problem-solving Python issues, write temporary test scripts and run them
-  with `pixi run -e test python debug_script.py`, for example. Or, run individual tests
-  with `pixi run -e test pytest tests/test_*.py`. Do not try to use
-  `pixi run pytest ...` or `pixi run python -c '<command>'` as these will not
+  with `pixi run --as-is -e test python debug_script.py`, for example. Or, run individual tests
+  with `pixi run --as-is -e test pytest tests/test_*.py`. Do not try to use
+  `pixi run --as-is pytest ...` or `pixi run --as-is python -c '<command>'` as these will not
   work correctly.

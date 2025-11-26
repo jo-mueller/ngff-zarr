@@ -1,3 +1,5 @@
+// SPDX-FileCopyrightText: Copyright (c) Fideus Labs LLC
+// SPDX-License-Identifier: MIT
 /**
  * Convert ITK-Wasm Image to NgffImage
  */
@@ -17,6 +19,12 @@ export interface ItkImageToNgffImageOptions {
    * @default true
    */
   addAnatomicalOrientation?: boolean;
+
+  /**
+   * Path prefix for the zarr array (e.g., "scale0/", "scale1/")
+   * @default "image"
+   */
+  path?: string;
 }
 
 /**
@@ -34,11 +42,13 @@ export async function itkImageToNgffImage(
   itkImage: Image,
   options: ItkImageToNgffImageOptions = {},
 ): Promise<NgffImage> {
-  const { addAnatomicalOrientation = true } = options;
+  const { addAnatomicalOrientation = true, path = "image" } = options;
 
   // Extract image properties from ITK-Wasm Image
   const _data = itkImage.data;
-  const shape = itkImage.size;
+  // ITK stores size in physical space order [x, y, z], but the data buffer is in
+  // C-order (row-major) which means [z, y, x] indexing. Reverse to match data layout.
+  const shape = [...itkImage.size].reverse();
   const spacing = itkImage.spacing;
   const origin = itkImage.origin;
   const ndim = shape.length;
@@ -75,26 +85,21 @@ export async function itkImageToNgffImage(
   const allSpatialDims = new Set(["x", "y", "z"]);
   const spatialDims = dims.filter((dim) => allSpatialDims.has(dim));
 
-  // Create scale mapping from spacing (ITK order: [z, y, x] for 3D, [y, x] for 2D)
+  // Create scale mapping from spacing
+  // ITK stores spacing/origin in physical space order (x, y, z),
+  // but we need to map them to array order (z, y, x).
+  // Reverse the arrays to convert from physical to array order, matching Python implementation.
   const scale: Record<string, number> = {};
-  // Define canonical ITK spatial order for up to 3D
-  const itkSpatialOrder = ["z", "y", "x"].slice(-spatialDims.length);
-  spatialDims.forEach((dim) => {
-    const spatialIndex = itkSpatialOrder.indexOf(dim);
-    if (spatialIndex === -1) {
-      throw new Error(`Unknown spatial dimension: ${dim}`);
-    }
-    scale[dim] = spacing[spatialIndex];
+  const reversedSpacing = spacing.slice().reverse();
+  spatialDims.forEach((dim, idx) => {
+    scale[dim] = reversedSpacing[idx];
   });
 
-  // Create translation mapping from origin (ITK order: [z, y, x] for 3D, [y, x] for 2D)
+  // Create translation mapping from origin
   const translation: Record<string, number> = {};
-  spatialDims.forEach((dim) => {
-    const spatialIndex = itkSpatialOrder.indexOf(dim);
-    if (spatialIndex === -1) {
-      throw new Error(`Unknown spatial dimension: ${dim}`);
-    }
-    translation[dim] = origin[spatialIndex];
+  const reversedOrigin = origin.slice().reverse();
+  spatialDims.forEach((dim, idx) => {
+    translation[dim] = reversedOrigin[idx];
   });
 
   // Create Zarr array from ITK-Wasm data
@@ -104,7 +109,7 @@ export async function itkImageToNgffImage(
   // Determine appropriate chunk size
   const chunkShape = shape.map((s) => Math.min(s, 256));
 
-  const zarrArray = await zarr.create(root.resolve("image"), {
+  const zarrArray = await zarr.create(root.resolve(path), {
     shape: shape,
     chunk_shape: chunkShape,
     data_type: imageType.componentType as zarr.DataType,
@@ -118,10 +123,13 @@ export async function itkImageToNgffImage(
   const selection = new Array(ndim).fill(null);
 
   // Create a chunk object with the ITK-Wasm data in zarrita format
+  // ITK-Wasm stores data in column-major order with size [x, y, z],
+  // which has the same memory layout as C-order (row-major) with shape [z, y, x].
+  // We reversed the shape above, and now use C-order strides for that reversed shape.
   const dataChunk = {
     data: itkImage.data as zarr.TypedArray<typeof imageType.componentType>,
     shape: shape,
-    stride: getStrides(shape, "C"), // C-order (row-major) strides for compatibility
+    stride: getStrides(shape, "C"), // C-order strides for the reversed shape
   };
 
   // Write all data to the zarr array using zarrita's set function

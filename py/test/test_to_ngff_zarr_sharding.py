@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: Copyright (c) Fideus Labs LLC
+# SPDX-License-Identifier: MIT
 import json
 from packaging import version
 import tempfile
@@ -145,10 +147,10 @@ def test_tensorstore_sharding(input_images):
         )
 
 
+@pytest.mark.skipif(
+    zarr_version < version.parse("3.0.0b1"), reason="zarr version < 3.0.0b1"
+)
 def test_large_image_serialization_with_sharding(input_images):
-    pytest.mark.skipif(
-        zarr_version < version.parse("3.0.0b1"), reason="zarr version < 3.0.0b1"
-    )
     default_mem_target = config.memory_target
     config.memory_target = int(1e6)
 

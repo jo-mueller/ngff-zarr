@@ -1,3 +1,5 @@
+// SPDX-FileCopyrightText: Copyright (c) Fideus Labs LLC
+// SPDX-License-Identifier: MIT
 import type { AxesType, SupportedDims, Units } from "./units.ts";
 
 export interface Axis {
@@ -46,6 +48,12 @@ export interface Omero {
   version?: string;
 }
 
+export interface MethodMetadata {
+  description: string;
+  method: string;
+  version: string;
+}
+
 export interface Metadata {
   axes: Axis[];
   datasets: Dataset[];
@@ -53,6 +61,8 @@ export interface Metadata {
   omero: Omero | undefined;
   name: string;
   version: string;
+  type?: string;
+  metadata?: MethodMetadata;
 }
 
 export function validateColor(color: string): void {

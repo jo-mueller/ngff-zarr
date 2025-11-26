@@ -1,3 +1,5 @@
+// SPDX-FileCopyrightText: Copyright (c) Fideus Labs LLC
+// SPDX-License-Identifier: MIT
 import * as zarr from "zarrita";
 import type { Multiscales } from "../types/multiscales.ts";
 import type { NgffImage } from "../types/ngff_image.ts";
@@ -67,6 +69,12 @@ export async function toNgffZarr(
             ...(multiscales.metadata.coordinateTransformations && {
               coordinateTransformations:
                 multiscales.metadata.coordinateTransformations,
+            }),
+            ...(multiscales.metadata.type && {
+              type: multiscales.metadata.type,
+            }),
+            ...(multiscales.metadata.metadata && {
+              metadata: multiscales.metadata.metadata,
             }),
           },
         ],
@@ -278,6 +286,25 @@ async function writeChunkWithGet(
     zarrArray.dtype,
     targetTypedArrayConstructor,
   );
+
+  // Validate chunk data size
+  const expectedSize = chunkShape.reduce((a, b) => a * b, 1);
+  const actualSize = chunkTargetData.byteLength /
+    ((chunkTargetData as Uint8Array | Uint16Array | Int16Array | Float32Array)
+      .BYTES_PER_ELEMENT || 1);
+  if (actualSize !== expectedSize) {
+    console.error(`[writeChunkWithGet] Chunk data size mismatch!`);
+    console.error(`  Image shape:`, shape);
+    console.error(`  Chunk index:`, chunkIndex);
+    console.error(`  Chunk start:`, chunkStart);
+    console.error(`  Chunk end:`, chunkEnd);
+    console.error(`  Chunk shape:`, chunkShape);
+    console.error(`  Expected size:`, expectedSize);
+    console.error(`  Actual size:`, actualSize);
+    throw new Error(
+      `Chunk data size mismatch: expected ${expectedSize} elements, got ${actualSize}`,
+    );
+  }
 
   // Create the selection for writing to the target zarr array
   const targetSelection = chunkStart.map((start, dim) =>

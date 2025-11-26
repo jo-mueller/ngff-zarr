@@ -1,3 +1,5 @@
+<!-- SPDX-FileCopyrightText: Copyright (c) Fideus Labs LLC -->
+<!-- SPDX-License-Identifier: MIT -->
 # ngff-zarr
 
 [![PyPI - Version](https://img.shields.io/pypi/v/ngff-zarr.svg)](https://pypi.org/project/ngff-zarr)
@@ -28,6 +30,7 @@ A lean and kind
 - [Sharded Zarr] stores
 - Optional writing via zarr-python 2, zarr-python 3, [tensorstore] or zarrita (TypeScript)
 - [Anatomical orientation metadata](./rfc4.md) (RFC-4)
+- **OME-Zarr Zip (.ozx) file support** for single-file OME-Zarr datasets (RFC-9)
 - **High Content Screening (HCS) support** for plate and well data
 - **Model Context Protocol (MCP) server** for AI agent integration
 
