@@ -34,7 +34,7 @@ class TransformSequence:
     input: Optional[Union[str, coordinateSystem]]
     output: Optional[Union[str, coordinateSystem]]
     transformations: List[coordinateTransformations]
-    type: str = 'sequence'
+    type: str = "sequence"
     name: Optional[str] = None
 
 
