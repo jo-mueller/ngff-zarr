@@ -180,7 +180,6 @@ def from_ngff_zarr(
                 path=dataset["path"],
                 coordinateTransformations=coordinateTransformations,
             )
-        
         # assume v04 metadata for unknown (older) versions
         else:
             from .v04.zarr_metadata import Dataset, Scale, Translation
