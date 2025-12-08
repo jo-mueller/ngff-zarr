@@ -118,9 +118,9 @@ def from_ngff_zarr(
         metadata = root.attrs["multiscales"][0]
 
     if "axes" in metadata:
-        dims = [a["name"] if "name" in a else a for a in metadata["axes"]]
+        dims = tuple([a["name"] if "name" in a else a for a in metadata["axes"]])
     elif "coordinateSystems" in metadata:
-        dims = [a["name"] for a in metadata["coordinateSystems"][0]["axes"]]
+        dims = tuple([a["name"] for a in metadata["coordinateSystems"][0]["axes"]])
     else:
         from .v04.zarr_metadata import supported_dims
         dims = tuple(reversed(supported_dims))
