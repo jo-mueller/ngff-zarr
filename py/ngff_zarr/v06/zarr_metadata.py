@@ -13,19 +13,19 @@ class CoordinateSystem:
 @dataclass
 class Scale:
     scale: List[float]
+    name: Optional[str]
+    input: Optional[Union[str, CoordinateSystem]]
+    output: Optional[Union[str, CoordinateSystem]]
     type: str = "scale"
-    name: Optional[str] = None
-    input: Optional[Union[None, str, CoordinateSystem]]
-    output: Optional[Union[None, str, CoordinateSystem]]
 
 
 @dataclass
 class Translation:
     translation: List[float]
+    name: Optional[str]
+    input: Optional[Union[str, CoordinateSystem]]
+    output: Optional[Union[str, CoordinateSystem]]
     type: str = "translation"
-    name: Optional[str] = None
-    input: Optional[Union[None, str, CoordinateSystem]]
-    output: Optional[Union[None, str, CoordinateSystem]]
 
 
 coordinateTransformations = Union[Scale, Translation]
