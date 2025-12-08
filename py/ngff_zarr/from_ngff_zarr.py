@@ -212,8 +212,7 @@ def from_ngff_zarr(
             axes = [Axis(name=axis, type=type_dict[axis]) for axis in metadata["axes"]]
     elif "coordinateSystems" in metadata:
         axes = [
-            Axis(name=axis["name"], type="space")  # Default to space if type not given
-            for axis in metadata["coordinateSystems"][0]["axes"]
+            Axis(**axis) for axis in metadata["coordinateSystems"][0]["axes"]
         ]
     else:
         axes = [
