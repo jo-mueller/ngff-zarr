@@ -13,8 +13,8 @@ class Scale:
     scale: List[float]
     type: str = "scale"
     name: Optional[str] = None
-    input: Optional[Union[None, str, coordinateSystem]] = None
-    output: Optional[Union[None, str, coordinateSystem]] = None
+    input: Optional[Union[None, str, coordinateSystem]]
+    output: Optional[Union[None, str, coordinateSystem]]
 
 
 @dataclass
@@ -22,8 +22,8 @@ class Translation:
     translation: List[float]
     type: str = "translation"
     name: Optional[str] = None
-    input: Optional[Union[None, str, coordinateSystem]] = None
-    output: Optional[Union[None, str, coordinateSystem]] = None
+    input: Optional[Union[None, str, coordinateSystem]]
+    output: Optional[Union[None, str, coordinateSystem]]
 
 
 coordinateTransformations = Union[Scale, Translation]
