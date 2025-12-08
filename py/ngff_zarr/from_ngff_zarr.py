@@ -123,7 +123,7 @@ def from_ngff_zarr(
         dims = [a["name"] for a in metadata["coordinateSystems"][0]["axes"]]
     else:
         from .v04.zarr_metadata import supported_dims
-        dims = list(reversed(supported_dims))
+        dims = tuple(reversed(supported_dims))
 
     name = "image"
     if name in metadata:
