@@ -377,33 +377,72 @@ def _prepare_metadata(
         method_metadata = get_method_metadata(multiscales.method)
 
     dimension_names = None
-    if version == "0.4" and isinstance(metadata, Metadata_v05):
-        metadata = Metadata_v04(
-            axes=metadata.axes,
-            datasets=metadata.datasets,
-            coordinateTransformations=metadata.coordinateTransformations,
-            name=metadata.name,
-            type=method_type,
-            metadata=method_metadata,
-        )
-    elif version == "0.5" and isinstance(metadata, Metadata_v04):
-        metadata = Metadata_v05(
-            axes=metadata.axes,
-            datasets=metadata.datasets,
-            coordinateTransformations=metadata.coordinateTransformations,
-            name=metadata.name,
-            type=method_type,
-            metadata=method_metadata,
-        )
+    if isinstance(metadata, Metadata_v04):
         dimension_names = tuple([ax.name for ax in metadata.axes])
+        if version == "0.4":
+            # Already in v0.5 format, just update type and metadata
+            if hasattr(metadata, "type"):
+                metadata.type = method_type
+        elif version == "0.5":
+            metadata = Metadata_v05(
+                axes=metadata.axes,
+                datasets=metadata.datasets,
+                coordinateTransformations=metadata.coordinateTransformations,
+                name=metadata.name,
+                type=method_type,
+                metadata=method_metadata,
+            )
+        elif version == "0.6":
+            from .v06.zarr_metadata import CoordinateSystem
+            metadata = Metadata_v06(
+                coordinateSystems=[
+                    CoordinateSystem(
+                        name="default",
+                        axes=metadata.axes,
+                    )
+                ],
+                datasets=metadata.datasets,
+                coordinateTransformations=metadata.coordinateTransformations,
+                name=metadata.name,
+                type=method_type,
+                metadata=method_metadata,
+            )
 
-    else:
-        # Update the existing metadata object with the type
-        if hasattr(metadata, "type"):
-            metadata.type = method_type
+    elif isinstance(metadata, Metadata_v05):
+        dimension_names = tuple([ax.name for ax in metadata.axes])
+        if version == "0.4":
+            metadata = Metadata_v04(
+            axes=metadata.axes,
+            datasets=metadata.datasets,
+            coordinateTransformations=metadata.coordinateTransformations,
+            name=metadata.name,
+            type=method_type,
+            metadata=method_metadata,
+        )
+        
+        elif version == "0.5":
+            # Already in v0.5 format, just update type and metadata
+            if hasattr(metadata, "type"):
+                metadata.type = method_type
 
-    if isinstance(metadata, Metadata_v06):
+        elif version == "0.6":
+            from .v06.zarr_metadata import CoordinateSystem
+            metadata = Metadata_v06(
+                coordinateSystems=[
+                    CoordinateSystem(
+                        name="default",
+                        axes=metadata.axes,
+                    )
+                ],
+                datasets=metadata.datasets,
+                coordinateTransformations=metadata.coordinateTransformations,
+                name=metadata.name,
+                type=method_type,
+                metadata=method_metadata,
+            )
+    elif isinstance(metadata, Metadata_v06):
         dimension_names = tuple([ax.name for ax in metadata.coordinateSystems[0].axes])
+
 
     dimension_names_kwargs = (
         {"dimension_names": dimension_names} if version != "0.4" else {}
