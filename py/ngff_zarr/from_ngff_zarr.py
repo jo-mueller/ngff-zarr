@@ -343,7 +343,7 @@ def from_ngff_zarr(
 
         metadata_obj = Metadata(
             datasets=datasets,
-            coordinateSystems=[metadata["coordinateSystems"][0]],
+            coordinateSystems=[(metadata.get("coordinateSystems") or [{}])[0]],
             coordinateTransformations=coordinateTransformations,
             name=name,
             omero=omero,
