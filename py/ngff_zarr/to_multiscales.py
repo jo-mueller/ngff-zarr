@@ -39,7 +39,7 @@ from .multiscales import Multiscales
 from .ngff_image import NgffImage
 from .rich_dask_progress import NgffProgress, NgffProgressCallback
 from .to_ngff_image import to_ngff_image
-from .v06.zarr_metadata import coordinateSystem, Dataset, Metadata, Scale, Translation, TransformSequence, Axis
+from .v06.zarr_metadata import CoordinateSystem, Dataset, Metadata, Scale, Translation, TransformSequence, Axis
 
 
 def _ngff_image_scale_factors(ngff_image, min_length, out_chunks):
@@ -471,7 +471,7 @@ def to_multiscales(
         method_metadata = get_method_metadata(method)
 
     metadata = Metadata(
-        coordinateSystems=[coordinateSystem(name='physical', axes=axes)],
+        coordinateSystems=[CoordinateSystem(name='physical', axes=axes)],
         datasets=datasets,
         name=ngff_image.name,
         coordinateTransformations=None,
