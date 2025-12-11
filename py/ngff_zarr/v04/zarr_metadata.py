@@ -6,6 +6,7 @@ import re
 
 # Import RFC 4 support
 from ..rfc4 import AnatomicalOrientation
+from .._supported_versions import SUPPORTED_VERSIONS
 
 SupportedDims = Union[
     Literal["c"], Literal["x"], Literal["y"], Literal["z"], Literal["t"]
@@ -261,3 +262,54 @@ class Metadata:
     version: str = "0.4"
     type: Optional[str] = None
     metadata: Optional[MethodMetadata] = None
+
+
+    def to_version(self, version: str) -> "Metadata":
+        if version not in SUPPORTED_VERSIONS:
+            raise ValueError(f"Unsupported version conversion: 0.4 -> {version}")
+        if version == "0.5":
+            return self.to_v05()
+        elif version == "0.4":
+            return self
+            
+        
+    @classmethod
+    def from_version(cls, metadata: "Metadata") -> "Metadata":
+        from ..v05.zarr_metadata import Metadata as Metadata_v05
+        
+        if isinstance(metadata, Metadata_v05):
+            return cls.from_v05(metadata)
+        else:
+            raise ValueError(f"Unsupported metadata type: {type(metadata)}")
+
+    def to_v05(self) -> "Metadata":
+        from ..v05.zarr_metadata import Metadata as Metadata_v05
+        
+        metadata = Metadata_v05(
+            axes=self.axes,
+            datasets=self.datasets,
+            coordinateTransformations=self.coordinateTransformations,
+            name=self.name,
+            metadata=self.metadata,
+            type=self.type,
+            omero=self.omero,
+        )
+        return metadata
+    
+    @classmethod
+    def from_v05(cls, metadata_v05: "Metadata") -> "Metadata":
+        
+        metadata = cls(
+            axes=metadata_v05.axes,
+            datasets=metadata_v05.datasets,
+            coordinateTransformations=metadata_v05.coordinateTransformations,
+            name=metadata_v05.name,
+            metadata=metadata_v05.metadata,
+            type=metadata_v05.type,
+            omero=metadata_v05.omero,
+        )
+        return metadata
+
+    @property
+    def dimension_names(self) -> tuple:
+        return tuple([ax.name for ax in self.axes])

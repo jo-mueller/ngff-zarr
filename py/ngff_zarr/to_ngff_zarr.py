@@ -363,30 +363,11 @@ def _prepare_metadata(
         method_type = multiscales.method.value
         method_metadata = get_method_metadata(multiscales.method)
 
-    if version == "0.4" and isinstance(metadata, Metadata_v05):
-        metadata = Metadata_v04(
-            axes=metadata.axes,
-            datasets=metadata.datasets,
-            coordinateTransformations=metadata.coordinateTransformations,
-            name=metadata.name,
-            type=method_type,
-            metadata=method_metadata,
-        )
-    elif version == "0.5" and isinstance(metadata, Metadata_v04):
-        metadata = Metadata_v05(
-            axes=metadata.axes,
-            datasets=metadata.datasets,
-            coordinateTransformations=metadata.coordinateTransformations,
-            name=metadata.name,
-            type=method_type,
-            metadata=method_metadata,
-        )
-    else:
-        # Update the existing metadata object with the type
-        if hasattr(metadata, 'type'):
-            metadata.type = method_type
+    metadata = metadata.to_version(version)
+    metadata.type = method_type
+    metadata.metadata = method_metadata
 
-    dimension_names = tuple([ax.name for ax in metadata.axes])
+    dimension_names = metadata.dimension_names
     dimension_names_kwargs = (
         {"dimension_names": dimension_names} if version != "0.4" else {}
     )

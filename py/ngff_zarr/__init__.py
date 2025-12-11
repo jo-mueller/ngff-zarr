@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: MIT
 
 from .__about__ import __version__
+from ._supported_versions import SUPPORTED_VERSIONS
 from .cli_input_to_ngff_image import cli_input_to_ngff_image
 from .config import config
 from .detect_cli_io_backend import ConversionBackend, detect_cli_io_backend
@@ -56,8 +57,11 @@ from .rfc4 import (
     remove_anatomical_orientation_from_axis,
 )
 
+
+
 __all__ = [
     "__version__",
+    "SUPPORTED_VERSIONS",
     "config",
     "NgffImage",
     "Multiscales",
