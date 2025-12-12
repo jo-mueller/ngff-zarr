@@ -1,4 +1,6 @@
 #!/usr/bin/env python
+# SPDX-FileCopyrightText: Copyright (c) Fideus Labs LLC
+# SPDX-License-Identifier: MIT
 
 if __name__ == "__main__" and __package__ is None:
     __package__ = "ngff_zarr"
@@ -270,7 +272,19 @@ def main():
         help="Use the TensorStore library for I/O",
     )
 
+
     args = parser.parse_args()
+
+    # Check that input and output are not the same
+    if args.output:
+        output_path = Path(args.output).resolve()
+        input_paths = [Path(inp).resolve() for inp in args.input]
+        if any(output_path == inp for inp in input_paths):
+            parser.error("Input and output file/directory must not be the same.")
+
+        # Set default OME-Zarr version to 0.5 for .ozx output files
+        if args.output.endswith('.ozx') and args.ome_zarr_version == '0.4':
+            args.ome_zarr_version = '0.5'
 
     if args.memory_target:
         config.memory_target = dask.utils.parse_bytes(args.memory_target)
@@ -346,7 +360,11 @@ def main():
         )
     output_store = None
     if args.output and output_backend is ConversionBackend.NGFF_ZARR:
-        output_store = LocalStore(args.output, **zarr_kwargs)
+        # Handle .ozx files - just pass the path, to_ngff_zarr will handle it
+        if args.output.endswith('.ozx'):
+            output_store = args.output
+        else:
+            output_store = LocalStore(args.output, **zarr_kwargs)
 
     subtitle = "[red]generation"
     if not args.output:
@@ -386,8 +404,8 @@ def main():
             return
 
         if input_backend is ConversionBackend.NGFF_ZARR:
-            store = LocalStore(args.input[0])
-            multiscales = from_ngff_zarr(store)
+            # Pass the path directly to from_ngff_zarr to let it handle .ozx files
+            multiscales = from_ngff_zarr(args.input[0])
             _multiscales_to_ngff_zarr(
                 live,
                 args,

@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: Copyright (c) Fideus Labs LLC
+# SPDX-License-Identifier: MIT
 import numpy as np
 from zarr.storage import MemoryStore
 
@@ -16,8 +18,12 @@ except ImportError:
 
 def test_downsample_czyx():
     data = np.random.randint(0, 256, 262144).reshape((2, 32, 64, 64)).astype(np.uint8)
+    from rich import print
+
     image = to_ngff_image(data, dims=["c", "z", "y", "x"])
+    print(image)
     multiscales = to_multiscales(image, scale_factors=[2, 4], chunks=32)
+    print(multiscales)
     store = MemoryStore()
     to_ngff_zarr(store, multiscales)
     assert multiscales.images[0].dims[0] == "c"
@@ -196,6 +202,7 @@ def test_gaussian_isotropic_scale_factors(input_images):
     else:
         baseline_name = "2_3_4/ITKWASM_GAUSSIAN.zarr"
     multiscales = to_multiscales(image, [2, 3, 4], method=Methods.ITKWASM_GAUSSIAN)
+    # from ._data import store_new_multiscales
     # store_new_multiscales(dataset_name, baseline_name, multiscales)
     verify_against_baseline(dataset_name, baseline_name, multiscales)
 

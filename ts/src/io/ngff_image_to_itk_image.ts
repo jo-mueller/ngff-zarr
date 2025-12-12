@@ -1,3 +1,5 @@
+// SPDX-FileCopyrightText: Copyright (c) Fideus Labs LLC
+// SPDX-License-Identifier: MIT
 /**
  * Convert NgffImage to ITK-Wasm Image
  */
@@ -247,9 +249,11 @@ export async function ngffImageToItkImage(
   });
 
   // Create ITK spacing, origin, and size arrays
+  // sortedItkDims is already in physical space order [x, y, z]
+  // Mapping from dims extracts the correct values from NGFF's array order [z, y, x]
   const spacing = sortedItkDims.map((dim) => workingImage.scale[dim] || 1.0);
-  const origin = sortedItkDims.map(
-    (dim) => workingImage.translation[dim] || 0.0,
+  const origin = sortedItkDims.map((dim) =>
+    workingImage.translation[dim] || 0.0
   );
   const size = sortedItkDims.map((dim) => data.shape[dims.indexOf(dim)]);
   const dimension = sortedItkDims.length;

@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: Copyright (c) Fideus Labs LLC
+# SPDX-License-Identifier: MIT
 import atexit
 import shutil
 import signal
@@ -137,7 +139,56 @@ def _large_image_serialization(
         path = f"{base_path}/slabs"
         slabs = data.rechunk(rechunks)
 
-        chunks = tuple([c[0] for c in slabs.chunks])
+        # Ensure chunks are compatible with Dask's to_zarr when writing with regions.
+        # The Zarr chunk size must divide evenly into the dimension size to avoid
+        # PerformanceWarning and potential data loss during region writes.
+        def _find_optimal_chunk_size(first_chunk, dim_size, min_divisor=16):
+            """Find a chunk size that divides evenly into dim_size and is ideally divisible by min_divisor.
+
+            The returned chunk size will:
+            1. Divide evenly into dim_size (required for safe region writes)
+            2. Be as close as possible to first_chunk
+            3. Preferably be divisible by min_divisor for performance
+            """
+            # If dimension is very small, just use it directly
+            if dim_size <= min_divisor:
+                return dim_size
+
+            # Start with the target chunk size
+            target = first_chunk
+
+            # First try to find a divisor of dim_size that's divisible by min_divisor
+            # and close to our target
+            best_chunk = dim_size  # Fallback: use full dimension
+            best_distance = abs(dim_size - target)
+
+            # Check all divisors of dim_size
+            for i in range(1, int(np.sqrt(dim_size)) + 1):
+                if dim_size % i == 0:
+                    # i and dim_size//i are both divisors
+                    for candidate in [i, dim_size // i]:
+                        distance = abs(candidate - target)
+                        # Prefer divisors that are multiples of min_divisor
+                        is_multiple = candidate % min_divisor == 0
+
+                        # Update if closer to target, with preference for multiples of min_divisor
+                        if distance < best_distance or (
+                            distance == best_distance
+                            and is_multiple
+                            and best_chunk % min_divisor != 0
+                        ):
+                            best_chunk = candidate
+                            best_distance = distance
+
+            return best_chunk
+
+        chunks = tuple(
+            [
+                _find_optimal_chunk_size(c[0], data.shape[i])
+                for i, c in enumerate(slabs.chunks)
+            ]
+        )
+
         optimized = dask.array.Array(
             dask.array.optimize(slabs.__dask_graph__(), slabs.__dask_keys__()),
             slabs.name,
@@ -186,7 +237,15 @@ def _large_image_serialization(
             rechunks[z_index] = optimized_chunks
             data = data.rechunk(rechunks)
             path = f"{base_path}/optimized_chunks"
-            chunks = tuple([c[0] for c in optimized.chunks])
+
+            # Use the same optimal chunk calculation for consistency
+            chunks = tuple(
+                [
+                    _find_optimal_chunk_size(c[0], data.shape[i])
+                    for i, c in enumerate(data.chunks)
+                ]
+            )
+
             data = data.rechunk(chunks)
             zarr_array = open_array(
                 shape=data.shape,
@@ -403,7 +462,7 @@ def to_multiscales(
     if method is not None:
         method_type = method.value
         method_metadata = get_method_metadata(method)
-    
+
     metadata = Metadata(
         axes=axes,
         datasets=datasets,

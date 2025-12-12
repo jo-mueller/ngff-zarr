@@ -1,3 +1,5 @@
+// SPDX-FileCopyrightText: Copyright (c) Fideus Labs LLC
+// SPDX-License-Identifier: MIT
 import { z } from "zod";
 import { AxisSchema } from "./rfc4.ts";
 
@@ -10,7 +12,12 @@ export const CoordinateSystemSchema = z.object({
 });
 
 // Identity transformation
-export const IdentityTransformationSchema = z.object({
+export const IdentityTransformationSchema: z.ZodType<{
+  type: "identity";
+  input?: string | string[] | undefined;
+  output?: string | string[] | undefined;
+  name?: string | undefined;
+}> = z.object({
   type: z.literal("identity"),
   input: z.union([z.string(), z.array(z.string())]).optional(),
   output: z.union([z.string(), z.array(z.string())]).optional(),
@@ -18,7 +25,13 @@ export const IdentityTransformationSchema = z.object({
 });
 
 // Map Axis transformation (axis permutation)
-export const MapAxisTransformationSchema = z.object({
+export const MapAxisTransformationSchema: z.ZodType<{
+  type: "mapAxis";
+  mapAxis: Record<string, string>;
+  input?: string | string[] | undefined;
+  output?: string | string[] | undefined;
+  name?: string | undefined;
+}> = z.object({
   type: z.literal("mapAxis"),
   mapAxis: z.record(z.string(), z.string()), // Dictionary mapping axis names
   input: z.union([z.string(), z.array(z.string())]).optional(),
@@ -27,7 +40,14 @@ export const MapAxisTransformationSchema = z.object({
 });
 
 // Translation transformation
-export const TranslationTransformationSchema = z
+export const TranslationTransformationSchema: z.ZodType<{
+  type: "translation";
+  translation?: number[] | undefined;
+  path?: string | undefined;
+  input?: string | string[] | undefined;
+  output?: string | string[] | undefined;
+  name?: string | undefined;
+}> = z
   .object({
     type: z.literal("translation"),
     translation: z.array(z.number()).optional(),
@@ -41,7 +61,14 @@ export const TranslationTransformationSchema = z
   });
 
 // Scale transformation
-export const ScaleTransformationSchema = z
+export const ScaleTransformationSchema: z.ZodType<{
+  type: "scale";
+  scale?: number[] | undefined;
+  path?: string | undefined;
+  input?: string | string[] | undefined;
+  output?: string | string[] | undefined;
+  name?: string | undefined;
+}> = z
   .object({
     type: z.literal("scale"),
     scale: z.array(z.number()).optional(),
@@ -55,7 +82,14 @@ export const ScaleTransformationSchema = z
   });
 
 // Affine transformation
-export const AffineTransformationSchema = z
+export const AffineTransformationSchema: z.ZodType<{
+  type: "affine";
+  affine?: number[][] | undefined;
+  path?: string | undefined;
+  input?: string | string[] | undefined;
+  output?: string | string[] | undefined;
+  name?: string | undefined;
+}> = z
   .object({
     type: z.literal("affine"),
     affine: z.array(z.array(z.number())).optional(), // 2D array for matrix
@@ -69,7 +103,14 @@ export const AffineTransformationSchema = z
   });
 
 // Rotation transformation
-export const RotationTransformationSchema = z
+export const RotationTransformationSchema: z.ZodType<{
+  type: "rotation";
+  rotation?: number[] | undefined;
+  path?: string | undefined;
+  input?: string | string[] | undefined;
+  output?: string | string[] | undefined;
+  name?: string | undefined;
+}> = z
   .object({
     type: z.literal("rotation"),
     rotation: z.array(z.number()).optional(),
@@ -83,7 +124,28 @@ export const RotationTransformationSchema = z
   });
 
 // Forward declaration for recursive types
-const BaseCoordinateTransformationSchema = z.union([
+type BaseCoordinateTransformation = {
+  type:
+    | "identity"
+    | "mapAxis"
+    | "translation"
+    | "scale"
+    | "affine"
+    | "rotation";
+  input?: string | string[] | undefined;
+  output?: string | string[] | undefined;
+  name?: string | undefined;
+  mapAxis?: Record<string, string> | undefined;
+  translation?: number[] | undefined;
+  path?: string | undefined;
+  scale?: number[] | undefined;
+  affine?: number[][] | undefined;
+  rotation?: number[] | undefined;
+};
+
+const BaseCoordinateTransformationSchema: z.ZodType<
+  BaseCoordinateTransformation
+> = z.union([
   IdentityTransformationSchema,
   MapAxisTransformationSchema,
   TranslationTransformationSchema,
@@ -93,7 +155,13 @@ const BaseCoordinateTransformationSchema = z.union([
 ]);
 
 // Sequence transformation (for chaining transformations)
-export const SequenceTransformationSchema = z.object({
+export const SequenceTransformationSchema: z.ZodType<{
+  type: "sequence";
+  transformations: BaseCoordinateTransformation[];
+  input?: string | string[] | undefined;
+  output?: string | string[] | undefined;
+  name?: string | undefined;
+}> = z.object({
   type: z.literal("sequence"),
   transformations: z.array(BaseCoordinateTransformationSchema),
   input: z.union([z.string(), z.array(z.string())]).optional(),
@@ -102,7 +170,13 @@ export const SequenceTransformationSchema = z.object({
 });
 
 // Inverse transformation
-export const InverseTransformationSchema = z.object({
+export const InverseTransformationSchema: z.ZodType<{
+  type: "inverseOf";
+  transformation: BaseCoordinateTransformation;
+  input?: string | string[] | undefined;
+  output?: string | string[] | undefined;
+  name?: string | undefined;
+}> = z.object({
   type: z.literal("inverseOf"),
   transformation: BaseCoordinateTransformationSchema,
   input: z.union([z.string(), z.array(z.string())]).optional(),
@@ -111,7 +185,14 @@ export const InverseTransformationSchema = z.object({
 });
 
 // Bijection transformation (forward and inverse)
-export const BijectionTransformationSchema = z.object({
+export const BijectionTransformationSchema: z.ZodType<{
+  type: "bijection";
+  forward: BaseCoordinateTransformation;
+  inverse: BaseCoordinateTransformation;
+  input?: string | string[] | undefined;
+  output?: string | string[] | undefined;
+  name?: string | undefined;
+}> = z.object({
   type: z.literal("bijection"),
   forward: BaseCoordinateTransformationSchema,
   inverse: BaseCoordinateTransformationSchema,
@@ -121,7 +202,13 @@ export const BijectionTransformationSchema = z.object({
 });
 
 // By dimension transformation
-export const ByDimensionTransformationSchema = z.object({
+export const ByDimensionTransformationSchema: z.ZodType<{
+  type: "byDimension";
+  transformations: BaseCoordinateTransformation[];
+  input?: string | string[] | undefined;
+  output?: string | string[] | undefined;
+  name?: string | undefined;
+}> = z.object({
   type: z.literal("byDimension"),
   transformations: z.array(BaseCoordinateTransformationSchema),
   input: z.union([z.string(), z.array(z.string())]).optional(),
@@ -130,7 +217,82 @@ export const ByDimensionTransformationSchema = z.object({
 });
 
 // Complete coordinate transformation schema (union of all types)
-export const CoordinateTransformationSchema = z.union([
+export const CoordinateTransformationSchema: z.ZodType<
+  | {
+    type: "identity";
+    input?: string | string[] | undefined;
+    output?: string | string[] | undefined;
+    name?: string | undefined;
+  }
+  | {
+    type: "mapAxis";
+    mapAxis: Record<string, string>;
+    input?: string | string[] | undefined;
+    output?: string | string[] | undefined;
+    name?: string | undefined;
+  }
+  | {
+    type: "translation";
+    translation?: number[] | undefined;
+    path?: string | undefined;
+    input?: string | string[] | undefined;
+    output?: string | string[] | undefined;
+    name?: string | undefined;
+  }
+  | {
+    type: "scale";
+    scale?: number[] | undefined;
+    path?: string | undefined;
+    input?: string | string[] | undefined;
+    output?: string | string[] | undefined;
+    name?: string | undefined;
+  }
+  | {
+    type: "affine";
+    affine?: number[][] | undefined;
+    path?: string | undefined;
+    input?: string | string[] | undefined;
+    output?: string | string[] | undefined;
+    name?: string | undefined;
+  }
+  | {
+    type: "rotation";
+    rotation?: number[] | undefined;
+    path?: string | undefined;
+    input?: string | string[] | undefined;
+    output?: string | string[] | undefined;
+    name?: string | undefined;
+  }
+  | {
+    type: "sequence";
+    transformations: BaseCoordinateTransformation[];
+    input?: string | string[] | undefined;
+    output?: string | string[] | undefined;
+    name?: string | undefined;
+  }
+  | {
+    type: "inverseOf";
+    transformation: BaseCoordinateTransformation;
+    input?: string | string[] | undefined;
+    output?: string | string[] | undefined;
+    name?: string | undefined;
+  }
+  | {
+    type: "bijection";
+    forward: BaseCoordinateTransformation;
+    inverse: BaseCoordinateTransformation;
+    input?: string | string[] | undefined;
+    output?: string | string[] | undefined;
+    name?: string | undefined;
+  }
+  | {
+    type: "byDimension";
+    transformations: BaseCoordinateTransformation[];
+    input?: string | string[] | undefined;
+    output?: string | string[] | undefined;
+    name?: string | undefined;
+  }
+> = z.union([
   IdentityTransformationSchema,
   MapAxisTransformationSchema,
   TranslationTransformationSchema,

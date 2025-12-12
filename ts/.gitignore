@@ -1,3 +1,5 @@
 npm/
 test/browser-npm/node_modules/
 dist/
+node_modules/
+test/output/

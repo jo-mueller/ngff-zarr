@@ -32,7 +32,7 @@ dependencies = [
   "dask[array]",
   "importlib_resources",
   "itkwasm >= 1.0b183",
-  "itkwasm-downsample >= 1.7.1",
+  "itkwasm-downsample >= 1.8.0",
   "numpy",
   "platformdirs",
   "psutil; sys_platform != \"emscripten\"",
@@ -65,6 +65,7 @@ cli = [
   "itk-io>=5.3.0",
   "itkwasm-image-io",
   "imageio",
+  "nibabel",
   "tifffile>=2024.7.24",
   "imagecodecs",
 ]
@@ -161,7 +162,7 @@ messages_control.disable = [
 [tool.black]
 line-length = 88
 
-[tool.pixi.project]
+[tool.pixi.workspace]
 channels = ["conda-forge"]
 platforms = ["win-64", "linux-64", "osx-64", "osx-arm64", "linux-aarch64"]
 
@@ -176,6 +177,9 @@ test = { features = ["test", "dask-image", "itk", "cli", "validate", "tensorstor
 lint = { features = ["lint"], no-default-feature = true, solve-group = "default" }
 docs = { features = ["docs"], no-default-feature = true, solve-group = "default" }
 data = { features = ["data"], no-default-feature = true, solve-group = "default" }
+
+[tool.pixi.feature.test.dependencies]
+python = ">=3.9.19,<3.14.0"
 
 [tool.pixi.feature.test.tasks]
 test = { cmd = "pytest", description = "Run the test suite" }
@@ -207,3 +211,6 @@ pooch = ">=1.8.2,<2"
 
 [tool.pixi.feature.data.tasks]
 hash-data = { cmd = "tar cvf ../data.tar * && gzip -9 -f ../data.tar && echo 'New SHA256:' && python3 -c 'import pooch; print(pooch.file_hash(\"../data.tar.gz\"))'", cwd = "test/data", description = "Update the testing data tarball and get its sha256 hash" }
+
+[tool.pixi.dependencies]
+matplotlib = ">=3.10.6,<4"

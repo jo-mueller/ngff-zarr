@@ -1,10 +1,17 @@
+// SPDX-FileCopyrightText: Copyright (c) Fideus Labs LLC
+// SPDX-License-Identifier: MIT
 import { z } from "zod";
 import { AxesTypeSchema, SupportedDimsSchema, UnitsSchema } from "./units.ts";
 import { AnatomicalOrientationSchema } from "./rfc4.ts";
 import { CoordinateTransformationSchema } from "./coordinate_systems.ts";
 
 // Enhanced Axis schema that supports RFC4 orientation
-export const AxisSchema = z.object({
+export const AxisSchema: z.ZodObject<{
+  name: typeof SupportedDimsSchema;
+  type: typeof AxesTypeSchema;
+  unit: z.ZodOptional<typeof UnitsSchema>;
+  orientation: z.ZodOptional<typeof AnatomicalOrientationSchema>;
+}> = z.object({
   name: SupportedDimsSchema,
   type: AxesTypeSchema,
   unit: UnitsSchema.optional(),
@@ -36,7 +43,7 @@ export const TranslationSchema: z.ZodObject<{
 });
 
 // Enhanced transform schema that includes all RFC5 transformations
-export const TransformSchema = z.union([
+export const TransformSchema: z.ZodType<unknown> = z.union([
   ScaleSchema,
   TranslationSchema,
   IdentitySchema,
@@ -81,6 +88,16 @@ export const OmeroSchema: z.ZodObject<{
   channels: z.array(OmeroChannelSchema),
 });
 
+export const MethodMetadataSchema: z.ZodType<{
+  description: string;
+  method: string;
+  version: string;
+}> = z.object({
+  description: z.string(),
+  method: z.string(),
+  version: z.string(),
+});
+
 export const MetadataSchema: z.ZodObject<{
   axes: z.ZodArray<typeof AxisSchema>;
   datasets: z.ZodArray<typeof DatasetSchema>;
@@ -88,6 +105,8 @@ export const MetadataSchema: z.ZodObject<{
   omero: z.ZodOptional<typeof OmeroSchema>;
   name: z.ZodDefault<z.ZodString>;
   version: z.ZodDefault<z.ZodString>;
+  type: z.ZodOptional<z.ZodString>;
+  metadata: z.ZodOptional<typeof MethodMetadataSchema>;
 }> = z.object({
   axes: z.array(AxisSchema),
   datasets: z.array(DatasetSchema),
@@ -95,4 +114,6 @@ export const MetadataSchema: z.ZodObject<{
   omero: OmeroSchema.optional(),
   name: z.string().default("image"),
   version: z.string().default("0.4"),
+  type: z.string().optional(),
+  metadata: MethodMetadataSchema.optional(),
 });

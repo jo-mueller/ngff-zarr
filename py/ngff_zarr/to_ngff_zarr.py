@@ -1,4 +1,7 @@
+# SPDX-FileCopyrightText: Copyright (c) Fideus Labs LLC
+# SPDX-License-Identifier: MIT
 import sys
+import tempfile
 from collections.abc import MutableMapping
 from dataclasses import asdict
 from pathlib import Path, PurePosixPath
@@ -23,6 +26,7 @@ from ._zarr_open_array import open_array
 from .v04.zarr_metadata import Metadata as Metadata_v04
 from .v05.zarr_metadata import Metadata as Metadata_v05
 from .rfc4 import is_rfc4_enabled
+from .rfc9_zip import is_ozx_path, write_store_to_zip
 
 # Zarr Python 3
 if hasattr(zarr.storage, "StoreLike"):
@@ -131,13 +135,6 @@ def _write_with_tensorstore(
     """Write array using tensorstore backend"""
     import tensorstore as ts
 
-    # Filter out compression-related kwargs that don't apply to TensorStore
-    # TensorStore handles compression through codecs in metadata
-    filtered_kwargs = {
-        k: v for k, v in kwargs.items()
-        if k not in ['compressor', 'compression', 'filters']
-    }
-
     # Use full array shape if provided, otherwise use the region array shape
     dataset_shape = full_array_shape if full_array_shape is not None else array.shape
 
@@ -162,7 +159,7 @@ def _write_with_tensorstore(
             # Add compression for zarr v2 with TensorStore
             if compressor is not None:
                 # TensorStore zarr2 driver uses compressor in metadata
-                if hasattr(compressor, 'codec_id'):
+                if hasattr(compressor, "codec_id"):
                     # numcodecs compressor object
                     spec["metadata"]["compressor"] = compressor.get_config()
                 else:
@@ -192,29 +189,31 @@ def _write_with_tensorstore(
                 if compressor is None:
                     return None
 
-                if hasattr(compressor, 'codec_id'):
+                if hasattr(compressor, "codec_id"):
                     # numcodecs compressor object
                     codec_id = compressor.codec_id
-                    if codec_id == 'gzip':
+                    if codec_id == "gzip":
                         return {
                             "name": "gzip",
-                            "configuration": {"level": getattr(compressor, 'level', 6)}
+                            "configuration": {"level": getattr(compressor, "level", 6)},
                         }
-                    elif codec_id == 'blosc':
+                    elif codec_id == "blosc":
                         return {
                             "name": "blosc",
                             "configuration": {
-                                "cname": getattr(compressor, 'cname', 'lz4'),
-                                "clevel": getattr(compressor, 'clevel', 5),
-                                "shuffle": "shuffle" if getattr(compressor, 'shuffle', 1) == 1 else "noshuffle"
-                            }
+                                "cname": getattr(compressor, "cname", "lz4"),
+                                "clevel": getattr(compressor, "clevel", 5),
+                                "shuffle": "shuffle"
+                                if getattr(compressor, "shuffle", 1) == 1
+                                else "noshuffle",
+                            },
                         }
-                    elif codec_id == 'zstd':
+                    elif codec_id == "zstd":
                         return {
                             "name": "zstd",
-                            "configuration": {"level": getattr(compressor, 'level', 3)}
+                            "configuration": {"level": getattr(compressor, "level", 3)},
                         }
-                    elif codec_id == 'lz4':
+                    elif codec_id == "lz4":
                         return {"name": "lz4"}
                     else:
                         # Fallback: try to use the codec_id as name
@@ -238,10 +237,12 @@ def _write_with_tensorstore(
                         # For sharding, compression goes in the inner codecs
                         sharding_config["codecs"] = [compression_codec]
 
-                codecs.append({
-                    "name": "sharding_indexed",
-                    "configuration": sharding_config,
-                })
+                codecs.append(
+                    {
+                        "name": "sharding_indexed",
+                        "configuration": sharding_config,
+                    }
+                )
             else:
                 # No sharding, add compression codec directly if specified
                 if compressor is not None:
@@ -484,8 +485,8 @@ def _write_array_with_tensorstore(
 ) -> None:
     """Write an array using the TensorStore backend."""
     # Extract compressor and other conflicting parameters from kwargs to avoid conflicts
-    compressor = kwargs.pop('compressor', None)
-    kwargs.pop('chunks', None)  # Remove chunks from kwargs since it's a positional arg
+    compressor = kwargs.pop("compressor", None)
+    kwargs.pop("chunks", None)  # Remove chunks from kwargs since it's a positional arg
 
     scale_path = f"{store_path}/{path}"
     if shards is None:
@@ -631,61 +632,134 @@ def _handle_large_array_writing(
         else:
             shrink_factors.append(1)
 
-    chunks = tuple([c[0] for c in arr.chunks])
+    # Ensure chunks are compatible with Dask's to_zarr when writing with regions.
+    # The Zarr chunk size must divide evenly into the dimension size to avoid
+    # PerformanceWarning and potential data loss during region writes.
+    def _find_optimal_chunk_size(first_chunk, dim_size, min_divisor=16):
+        """Find a chunk size that divides evenly into dim_size and is ideally divisible by min_divisor.
+
+        The returned chunk size will:
+        1. Divide evenly into dim_size (required for safe region writes)
+        2. Be as close as possible to first_chunk
+        3. Preferably be divisible by min_divisor for performance
+        """
+        # If dimension is very small, just use it directly
+        if dim_size <= min_divisor:
+            return dim_size
+
+        # Start with the target chunk size
+        target = first_chunk
+
+        # First try to find a divisor of dim_size that's divisible by min_divisor
+        # and close to our target
+        best_chunk = dim_size  # Fallback: use full dimension
+        best_distance = abs(dim_size - target)
+
+        # Check all divisors of dim_size
+        for i in range(1, int(np.sqrt(dim_size)) + 1):
+            if dim_size % i == 0:
+                # i and dim_size//i are both divisors
+                for candidate in [i, dim_size // i]:
+                    distance = abs(candidate - target)
+                    # Prefer divisors that are multiples of min_divisor
+                    is_multiple = candidate % min_divisor == 0
+
+                    # Update if closer to target, with preference for multiples of min_divisor
+                    if distance < best_distance or (
+                        distance == best_distance
+                        and is_multiple
+                        and best_chunk % min_divisor != 0
+                    ):
+                        best_chunk = candidate
+                        best_distance = distance
+
+        return best_chunk
 
     # If sharding is enabled, configure it properly
     chunk_kwargs = {}
     codecs_kwargs = {}
 
-    if sharding_kwargs:
-        if "_shard_shape" in sharding_kwargs:
-            # For Zarr v3, configure sharding as a codec only
-            shard_shape = sharding_kwargs.pop("_shard_shape")
-            internal_chunk_shape = sharding_kwargs.get(
-                "chunk_shape"
-            )  # This is the inner chunk shape
+    if sharding_kwargs and "_shard_shape" in sharding_kwargs:
+        # For Zarr v3 with sharding, we need to ensure the shard shape divides evenly
+        shard_shape = sharding_kwargs.pop("_shard_shape")
+        internal_chunk_shape = sharding_kwargs.get(
+            "chunk_shape"
+        )  # This is the inner chunk shape
 
-            # Configure the sharding codec with proper defaults
-            from zarr.codecs.sharding import ShardingCodec
-            from zarr.codecs.bytes import BytesCodec
-            from zarr.codecs.zstd import ZstdCodec
+        # Apply _find_optimal_chunk_size to the shard shape to ensure it divides evenly
+        optimized_shard_shape = tuple(
+            [_find_optimal_chunk_size(s, arr.shape[i]) for i, s in enumerate(shard_shape)]
+        )
 
-            # Default inner codecs for sharding
-            default_codecs = [BytesCodec(), ZstdCodec()]
-
-            # Ensure internal_chunk_shape is available; fallback to chunks if needed
-            if internal_chunk_shape is None:
-                internal_chunk_shape = chunks
-
-            # The array's chunk_shape should be the shard shape
-            # The sharding codec's chunk_shape should be the internal chunk shape
-            sharding_codec = ShardingCodec(
-                chunk_shape=internal_chunk_shape,  # Internal chunk shape within shards
-                codecs=default_codecs,
+        # Ensure internal_chunk_shape divides evenly into optimized_shard_shape
+        if internal_chunk_shape is not None:
+            # Adjust each internal chunk to be a divisor of the corresponding shard dimension
+            adjusted_internal_chunks = []
+            for shard_dim, internal_dim in zip(optimized_shard_shape, internal_chunk_shape):
+                # Find the best divisor of shard_dim that's close to internal_dim
+                if shard_dim % internal_dim == 0:
+                    # Already divides evenly
+                    adjusted_internal_chunks.append(internal_dim)
+                else:
+                    # Find closest divisor
+                    best_divisor = _find_optimal_chunk_size(internal_dim, shard_dim)
+                    adjusted_internal_chunks.append(best_divisor)
+            internal_chunk_shape = tuple(adjusted_internal_chunks)
+        else:
+            # No internal chunks specified, use defaults based on array chunks
+            internal_chunk_shape = tuple(
+                [_find_optimal_chunk_size(c[0], s)
+                 for c, s in zip(arr.chunks, optimized_shard_shape)]
             )
 
-            # Set up codecs with sharding
-            existing_codecs = zarr_kwargs.get("codecs", [])
-            if not isinstance(existing_codecs, list):
-                existing_codecs = []
-            codecs_kwargs["codecs"] = [sharding_codec] + existing_codecs
+        # Configure the sharding codec with proper defaults
+        from zarr.codecs.sharding import ShardingCodec
+        from zarr.codecs.bytes import BytesCodec
+        from zarr.codecs.zstd import ZstdCodec
 
-            # Set the array's chunk_shape to the shard shape
-            chunk_kwargs["chunk_shape"] = shard_shape
+        # Default inner codecs for sharding
+        default_codecs = [BytesCodec(), ZstdCodec()]
 
-            # Clean up remaining kwargs (remove chunk_shape since we're setting it explicitly)
-            remaining_kwargs = {
-                k: v
-                for k, v in sharding_kwargs.items()
-                if k not in ["_shard_shape", "chunk_shape"]
-            }
-            sharding_kwargs_clean = remaining_kwargs
-        else:
-            # For Zarr v2 or other cases
-            sharding_kwargs_clean = sharding_kwargs
+        # The array's chunk_shape should be the shard shape
+        # The sharding codec's chunk_shape should be the internal chunk shape
+        sharding_codec = ShardingCodec(
+            chunk_shape=internal_chunk_shape,  # Internal chunk shape within shards
+            codecs=default_codecs,
+        )
+
+        # Set up codecs with sharding
+        existing_codecs = zarr_kwargs.get("codecs", [])
+        if not isinstance(existing_codecs, list):
+            existing_codecs = []
+        codecs_kwargs["codecs"] = [sharding_codec] + existing_codecs
+
+        # Set the array's chunk_shape to the optimized shard shape
+        chunk_kwargs["chunk_shape"] = optimized_shard_shape
+
+        # For region computation, use the optimized shard shape (actual zarr chunk shape)
+        zarr_chunk_shape = optimized_shard_shape
+
+        # Clean up remaining kwargs (remove chunk_shape since we're setting it explicitly)
+        remaining_kwargs = {
+            k: v
+            for k, v in sharding_kwargs.items()
+            if k not in ["_shard_shape", "chunk_shape"]
+        }
+        sharding_kwargs_clean = remaining_kwargs
+    elif sharding_kwargs:
+        # For Zarr v2 or other cases with sharding but no _shard_shape
+        chunks = tuple(
+            [_find_optimal_chunk_size(c[0], arr.shape[i]) for i, c in enumerate(arr.chunks)]
+        )
+        zarr_chunk_shape = chunks
+        sharding_kwargs_clean = sharding_kwargs
     else:
         # No sharding
+        chunks = tuple(
+            [_find_optimal_chunk_size(c[0], arr.shape[i]) for i, c in enumerate(arr.chunks)]
+        )
         chunk_kwargs = {"chunks": chunks}
+        zarr_chunk_shape = chunks
         sharding_kwargs_clean = {}
 
     zarr_array = open_array(
@@ -707,7 +781,7 @@ def _handle_large_array_writing(
     y_index = dims.index("y")
 
     regions = _compute_write_regions(
-        image, dims, arr, shape, x_index, y_index, chunks, shrink_factors
+        image, dims, arr, shape, x_index, y_index, zarr_chunk_shape, shrink_factors
     )
 
     for region_index, region in enumerate(regions):
@@ -979,13 +1053,13 @@ def to_ngff_zarr(
     """
     Write an image pixel array and metadata to a Zarr store with the OME-NGFF standard data model.
 
-    :param store: Store or path to directory in file system.
+    :param store: Store or path to directory in file system. If the path ends with .ozx, writes an RFC-9 compliant zipped OME-Zarr file.
     :type  store: StoreLike
 
     :param multiscales: Multiscales OME-NGFF image pixel data and metadata. Can be generated with ngff_zarr.to_multiscales.
     :type  multiscales: Multiscales
 
-    :param version: OME-Zarr specification version.
+    :param version: OME-Zarr specification version. For .ozx files, version 0.5 is required.
     :type  version: str, optional
 
     :param overwrite: If True, delete any pre-existing data in `store` before creating groups.
@@ -1001,13 +1075,104 @@ def to_ngff_zarr(
     :param progress: Optional progress logger
     :type  progress: RichDaskProgress
 
-    :param chunks_per_shard: Number of chunks along each axis in a shard. If None, no sharding. Requires OME-Zarr version >= 0.5.
+    :param chunks_per_shard: Number of chunks along each axis in a shard. If None, no sharding. For .ozx files, defaults to 2 if not specified. Requires OME-Zarr version >= 0.5.
     :type  chunks_per_shard: int, tuple, or dict, optional
 
     :param enabled_rfcs: List of RFC numbers to enable. If RFC 4 is included, anatomical orientation metadata will be preserved in the output.
     :type  enabled_rfcs: list of int, optional
 
     :param **kwargs: Passed to the zarr.create_array() or zarr.creation.create() function, e.g., compression options.
+    """
+    # RFC-9: Handle .ozx (zipped OME-Zarr) files
+    if isinstance(store, (str, Path)) and is_ozx_path(store):
+        if version != "0.5":
+            raise ValueError("RFC-9 zipped OME-Zarr (.ozx) requires OME-Zarr version 0.5")
+        
+        # Default chunks_per_shard to 2 for .ozx files if not specified
+        if chunks_per_shard is None:
+            chunks_per_shard = 2
+        
+        # Determine if we should use memory or disk for intermediate storage
+        total_memory_usage = sum(memory_usage(img) for img in multiscales.images)
+        use_memory_store = total_memory_usage <= config.memory_target
+        
+        if use_memory_store:
+            # Small dataset: use memory store
+            from zarr.storage import MemoryStore
+            temp_store = MemoryStore()
+        else:
+            # Large dataset: use temporary directory store in cache
+            if hasattr(zarr.storage, "DirectoryStore"):
+                LocalStore = zarr.storage.DirectoryStore
+            else:
+                LocalStore = zarr.storage.LocalStore
+            
+            temp_dir = tempfile.mkdtemp(dir=config.cache_store.path if hasattr(config.cache_store, 'path') else None)
+            temp_store = LocalStore(temp_dir)
+        
+        try:
+            # Write to temporary store first
+            _to_ngff_zarr_impl(
+                temp_store,
+                multiscales,
+                version=version,
+                overwrite=overwrite,
+                use_tensorstore=False,  # Can't use tensorstore with memory/temp stores
+                chunk_store=None,
+                progress=progress,
+                chunks_per_shard=chunks_per_shard,
+                enabled_rfcs=enabled_rfcs,
+                **kwargs,
+            )
+            
+            # Write temp store to .ozx file
+            write_store_to_zip(temp_store, store, version=version)
+        finally:
+            # Clean up temporary directory if used
+            if not use_memory_store:
+                import shutil
+                if hasattr(zarr.storage, "DirectoryStore") and isinstance(temp_store, zarr.storage.DirectoryStore):
+                    shutil.rmtree(temp_store.dir_path(), ignore_errors=True)
+                elif hasattr(zarr.storage, "LocalStore") and isinstance(temp_store, zarr.storage.LocalStore):
+                    shutil.rmtree(temp_store.root, ignore_errors=True)
+        
+        return
+    
+    # Standard (non-.ozx) path
+    _to_ngff_zarr_impl(
+        store,
+        multiscales,
+        version=version,
+        overwrite=overwrite,
+        use_tensorstore=use_tensorstore,
+        chunk_store=chunk_store,
+        progress=progress,
+        chunks_per_shard=chunks_per_shard,
+        enabled_rfcs=enabled_rfcs,
+        **kwargs,
+    )
+
+
+def _to_ngff_zarr_impl(
+    store: StoreLike,
+    multiscales: Multiscales,
+    version: str = "0.4",
+    overwrite: bool = True,
+    use_tensorstore: bool = False,
+    chunk_store: Optional[StoreLike] = None,
+    progress: Optional[Union[NgffProgress, NgffProgressCallback]] = None,
+    chunks_per_shard: Optional[
+        Union[
+            int,
+            Tuple[int, ...],
+            Dict[str, int],
+        ]
+    ] = None,
+    enabled_rfcs: Optional[List[int]] = None,
+    **kwargs,
+) -> None:
+    """
+    Internal implementation of to_ngff_zarr without .ozx handling.
     """
     # Setup and validation
     store_path = str(store) if isinstance(store, (str, Path)) else None

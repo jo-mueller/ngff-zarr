@@ -1,4 +1,6 @@
 #!/usr/bin/env -S deno run --allow-all
+// SPDX-FileCopyrightText: Copyright (c) Fideus Labs LLC
+// SPDX-License-Identifier: MIT
 
 import { build, emptyDir } from "dnt";
 
@@ -14,7 +16,7 @@ await build({
   typeCheck: false,
   package: {
     name: "@fideus-labs/ngff-zarr",
-    version: "0.0.2",
+    version: "0.2.0",
     description:
       "TypeScript implementation of ngff-zarr for reading and writing OME-Zarr files",
     license: "MIT",
@@ -47,11 +49,15 @@ await build({
     },
     files: ["esm/", "script/", "types/", "README.md", "LICENSE"],
     dependencies: {
+      "@itk-wasm/downsample": "^1.8.1",
       "itk-wasm": "^1.0.0-b.195",
       "p-queue": "^8.1.0",
       "@zarrita/storage": "^0.1.1",
       zod: "^4.0.2",
       zarrita: "^0.5.2",
+    },
+    devDependencies: {
+      "@itk-wasm/image-io": "^1.6.0",
     },
   },
   postBuild() {
