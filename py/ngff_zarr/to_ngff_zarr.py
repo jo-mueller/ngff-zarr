@@ -603,6 +603,7 @@ def _write_array_direct(
             array[:] = arr.compute()
     else:
         # All other cases: use dask.array.to_zarr
+        del to_zarr_kwargs["zarr_format"]
         target = (
             zarr_array if (region is not None and zarr_array is not None) else store
         )
@@ -614,7 +615,7 @@ def _write_array_direct(
             overwrite=False,
             compute=True,
             return_stored=False,
-            **to_zarr_kwargs,
+            zarr_array_kwargs=to_zarr_kwargs,
         )
 
 
@@ -1240,9 +1241,6 @@ def _to_ngff_zarr_impl(
             "The argument `compressors` are not supported for OME-Zarr version 0.4. (Zarr v3). Use `compression` instead."
         )
 
-    if zarr_format == 2 and zarr_version_major >= 3:
-        _zarr_kwargs["dimension_separator"] = "/"
-
     # Process each scale level
     nscales = len(multiscales.images)
     if progress:
@@ -1251,6 +1249,12 @@ def _to_ngff_zarr_impl(
     next_image = multiscales.images[0]
     dims = next_image.dims
     previous_dim_factors = {d: 1 for d in dims}
+
+    if zarr_format == 2 and zarr_version_major >= 3:
+        if memory_usage(next_image) > config.memory_target:
+            _zarr_kwargs["dimension_separator"] = "/"
+        else:
+            _zarr_kwargs["chunk_key_encoding"] = {"name": "v2", "separator": "/"}
 
     for index in range(nscales):
         if progress:
