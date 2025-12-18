@@ -406,7 +406,7 @@ def _create_zarr_root(
     _zarr_kwargs = zarr_kwargs.copy()
 
     if zarr_format == 2 and zarr_version_major >= 3:
-        _zarr_kwargs["dimension_separator"] = "/"
+        _zarr_kwargs["chunk_key_encoding"] = {"name": "v2", "separator": "/"}
 
     if version == "0.4":
         root = zarr.open_group(
@@ -603,7 +603,8 @@ def _write_array_direct(
             array[:] = arr.compute()
     else:
         # All other cases: use dask.array.to_zarr
-        del to_zarr_kwargs["zarr_format"]
+        if zarr_version_major >= 3:
+            del to_zarr_kwargs["zarr_format"]
         target = (
             zarr_array if (region is not None and zarr_array is not None) else store
         )
@@ -1252,7 +1253,10 @@ def _to_ngff_zarr_impl(
 
     if zarr_format == 2 and zarr_version_major >= 3:
         if memory_usage(next_image) > config.memory_target:
+            # This is due to heterogeneous zarr API. When writing large arrays in zarr .create is used which still
+            # contains dimension_separator as argument.
             _zarr_kwargs["dimension_separator"] = "/"
+            del _zarr_kwargs["chunk_key_encoding"]
         else:
             _zarr_kwargs["chunk_key_encoding"] = {"name": "v2", "separator": "/"}
 
