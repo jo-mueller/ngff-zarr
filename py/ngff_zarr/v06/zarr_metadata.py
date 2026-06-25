@@ -69,13 +69,59 @@ class Affine(BaseTransform):
     path: str | None = None
     type: str = "affine"
 
-Transform = Union[Identity, Scale, Translation, Rotation, Affine, "TransformSequence"]
+@dataclass(kw_only=True)
+class mapAxis(BaseTransform):
+    type: str = "mapAxis"
+    mapAxis: List[int]
+
+@dataclass(kw_only=True)
+class Displacements(BaseTransform):
+    type: str = "displacements"
+    interpolation: str = "linear"
+    path: str
+
+@dataclass(kw_only=True)
+class Coordinates(BaseTransform):
+    type: str = "coordinates"
+    interpolation: str = "linear"
+    path: str
+
+Transform = Union[
+    Identity,
+    Scale,
+    Translation,
+    Rotation,
+    Affine,
+    mapAxis,
+    Displacements,
+    Coordinates,
+    "ByDimension",
+    "Bijection",
+    "TransformSequence"
+    ]
+
+@dataclass(kw_only=True)
+class Bijection(BaseTransform):
+    type: str = "bijection"
+    forward: Transform
+    inverse: Transform
 
 @dataclass(kw_only=True)
 class TransformSequence(BaseTransform):
     transformations: List[Transform]
     name: str | None = "transformSequence"
     type: str = "sequence"
+
+@dataclass(kw_only=True)
+class ByDimensionSubtransform(BaseTransform):
+    transformation: Transform
+    input_axes: List[int]
+    output_axes: List[int]
+
+@dataclass(kw_only=True)
+class ByDimension(BaseTransform):
+    type: str = "byDimension"
+    transformations: List[ByDimensionSubtransform]
 
 @dataclass
 class Dataset:

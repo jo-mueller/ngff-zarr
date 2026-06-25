@@ -12,6 +12,12 @@ from ngff_zarr.v06.zarr_metadata import (
   Rotation,
   Affine,
   Identity,
+  mapAxis,
+  Bijection,
+  ByDimension,
+  ByDimensionSubtransform,
+  Displacements,
+  Coordinates,
   TransformSequence,
   CoordinateSystem,
   CoordinateSystemIdentifier,
@@ -35,8 +41,26 @@ def identity_transform() -> Identity:
 def scale_transform() -> Scale:
     return Scale(scale=[2.0, 2.0, 2.0])
 
+def scale_transform_inverse() -> Scale:
+    return Scale(scale=[0.5, 0.5, 0.5])
+
+def map_axis_transform() -> mapAxis:
+    return mapAxis(mapAxis=[2, 0, 1])
+
 def translation_transform() -> Translation:
     return Translation(translation=[10.0, 20.0, 30.0])
+
+def displacements_transform() -> Displacements:
+    return Displacements(
+        interpolation="linear",
+        path="/path/to/displacements.zarr",
+    )
+
+def coordinates_transform() -> Coordinates:
+    return Coordinates(
+        interpolation="linear",
+        path="/path/to/coordinates.zarr",
+    )
 
 def rotation_transform() -> Rotation:
     return Rotation(
@@ -64,6 +88,25 @@ def transform_sequence() -> TransformSequence:
         ]
     )
 
+def bijection_transform() -> Bijection:
+    return Bijection(
+        forward=scale_transform(),
+        inverse=scale_transform_inverse()
+    )
+
+def byDimension_transform() -> ByDimension:
+    subtransform1 = ByDimensionSubtransform(
+        transformation=Scale(scale=[2.0, 2.0]),
+        input_axes=[0, 1],
+        output_axes=[0, 1]
+    )
+    subtransform2 = ByDimensionSubtransform(
+        transformation=Translation(translation=[10.0]),
+        input_axes=[2],
+        output_axes=[2]
+    )
+    return ByDimension(transformations=[subtransform1, subtransform2])
+
 @requires_zarr_v3
 @pytest.mark.parametrize(
     "transform",
@@ -71,9 +114,14 @@ def transform_sequence() -> TransformSequence:
         identity_transform(),
         scale_transform(),
         translation_transform(),
+        map_axis_transform(),
         rotation_transform(),
         affine_transform(),
+        displacements_transform(),
+        coordinates_transform(),
+        byDimension_transform(),
         transform_sequence(),
+        bijection_transform(),
     ],
 )
 def test_transform_serialization(transform):
